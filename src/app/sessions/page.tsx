@@ -1,49 +1,65 @@
-const sessions = [
-  { id: 'S-1042', user: 'carlos.m@mail.com', charger: 'CP-07', start: '2026-08-15 09:12', kwh: '18.2', cost: '$3.64', status: 'completed' },
-  { id: 'S-1041', user: 'ana.p@mail.com', charger: 'CP-03', start: '2026-08-15 08:30', kwh: '29.4', cost: '$5.88', status: 'completed' },
-  { id: 'S-1040', user: 'luis.r@mail.com', charger: 'CP-11', start: '2026-08-15 07:55', kwh: '8.8', cost: '$1.76', status: 'completed' },
-  { id: 'S-1038', user: 'jose.h@mail.com', charger: 'CP-14', start: '2026-08-15 10:05', kwh: '12.1', cost: '$2.42', status: 'active' },
-]
-const sc: Record<string, string> = {
-  completed: 'bg-green-500/10 text-green-400',
-  active: 'bg-blue-500/10 text-blue-400',
+import { supabase } from '@/lib/supabase'
+
+export const dynamic = 'force-dynamic'
+
+type Session = {
+  id: string
+  user_id?: string
+  charger_id?: string
+  status?: string
+  duration?: number
+  kwh?: number
+  cost?: number
+  created_at?: string
 }
-export default function SessionsPage() {
+
+export default async function SessionsPage() {
+  const { data: sessions, error } = await supabase
+    .from('charging_sessions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  if (error) {
+    return <div className="p-6 text-red-600">Error cargando datos: {error.message}</div>
+  }
+
   return (
-    <div>
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">Sessions</h2>
-        <p className="text-gray-400 mt-1">Charging session history</p>
-      </div>
-      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-500 border-b border-gray-800 text-xs uppercase">
-              <th className="text-left px-6 py-3">ID</th>
-              <th className="text-left px-6 py-3">User</th>
-              <th className="text-left px-6 py-3">Charger</th>
-              <th className="text-left px-6 py-3">Start</th>
-              <th className="text-left px-6 py-3">kWh</th>
-              <th className="text-left px-6 py-3">Cost</th>
-              <th className="text-left px-6 py-3">Status</th>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Sesiones de Carga</h1>
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {['ID', 'Usuario', 'Cargador', 'Estado', 'Duración', 'kWh', 'Costo', 'Fecha'].map((h) => (
+                <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody>
-            {sessions.map((s) => (
-              <tr key={s.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="px-6 py-4 text-green-400 font-mono">{s.id}</td>
-                <td className="px-6 py-4 text-gray-300">{s.user}</td>
-                <td className="px-6 py-4 text-gray-400">{s.charger}</td>
-                <td className="px-6 py-4 text-gray-400">{s.start}</td>
-                <td className="px-6 py-4">{s.kwh}</td>
-                <td className="px-6 py-4 font-medium">{s.cost}</td>
-                <td className="px-6 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-full ${sc[s.status]}`}>{s.status}</span>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {(sessions as Session[]).map((s) => (
+              <tr key={s.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 text-sm font-mono text-gray-400">{s.id.slice(0, 8)}…</td>
+                <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.user_id?.slice(0, 8) ?? '—'}…</td>
+                <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.charger_id?.slice(0, 8) ?? '—'}…</td>
+                <td className="px-6 py-4 text-sm">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    s.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    s.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>{s.status ?? '—'}</span>
                 </td>
+                <td className="px-6 py-4 text-sm text-gray-500">{s.duration != null ? `${s.duration} min` : '—'}</td>
+                <td className="px-6 py-4 text-sm text-gray-500">{s.kwh != null ? `${s.kwh} kWh` : '—'}</td>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
+                <td className="px-6 py-4 text-sm text-gray-400">{s.created_at ? new Date(s.created_at).toLocaleString('es-MX') : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        {sessions?.length === 0 && (
+          <p className="text-center py-10 text-gray-400">No hay sesiones registradas.</p>
+        )}
       </div>
     </div>
   )

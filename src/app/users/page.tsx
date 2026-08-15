@@ -1,61 +1,18 @@
-const users = [
-  { id: 'U-001', name: 'Carlos Mendoza', email: 'carlos.m@mail.com', sessions: 42, spent: '$84.20', joined: '2025-03-12', status: 'active' },
-  { id: 'U-002', name: 'Ana Perez', email: 'ana.p@mail.com', sessions: 28, spent: '$56.40', joined: '2025-04-01', status: 'active' },
-  { id: 'U-003', name: 'Luis Ramirez', email: 'luis.r@mail.com', sessions: 15, spent: '$30.00', joined: '2025-05-20', status: 'active' },
-  { id: 'U-004', name: 'Maria Garcia', email: 'maria.g@mail.com', sessions: 67, spent: '$134.80', joined: '2025-01-08', status: 'active' },
-  { id: 'U-005', name: 'Jose Hernandez', email: 'jose.h@mail.com', sessions: 3, spent: '$6.00', joined: '2026-07-30', status: 'new' },
-  { id: 'U-006', name: 'Laura Vega', email: 'laura.v@mail.com', sessions: 0, spent: '$0.00', joined: '2026-08-10', status: 'inactive' },
-]
-const sc: Record<string, string> = {
-  active: 'bg-green-500/10 text-green-400',
-  new: 'bg-blue-500/10 text-blue-400',
-  inactive: 'bg-gray-500/10 text-gray-400',
-}
-export default function UsersPage() {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Users</h2>
-          <p className="text-gray-400 mt-1">{users.length} registered users</p>
-        </div>
-        <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">+ Invite User</button>
-      </div>
-      <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-500 border-b border-gray-800 text-xs uppercase">
-              <th className="text-left px-6 py-3">Name</th>
-              <th className="text-left px-6 py-3">Email</th>
-              <th className="text-left px-6 py-3">Sessions</th>
-              <th className="text-left px-6 py-3">Spent</th>
-              <th className="text-left px-6 py-3">Joined</th>
-              <th className="text-left px-6 py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-green-600/20 text-green-400 flex items-center justify-center text-xs font-bold">
-                      {u.name.split(' ').map((n: string) => n[0]).join('')}
-                    </div>
-                    <span className="text-white font-medium">{u.name}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-gray-400">{u.email}</td>
-                <td className="px-6 py-4 text-gray-300">{u.sessions}</td>
-                <td className="px-6 py-4 font-medium">{u.spent}</td>
-                <td className="px-6 py-4 text-gray-400">{u.joined}</td>
-                <td className="px-6 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-full ${sc[u.status]}`}>{u.status}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
+'use client'
+import{useEffect,useState}from 'react'
+import{supabase}from '@/lib/supabase'
+type P={id:string;email:string;full_name?:string;phone?:string;role?:string;created_at?:string}
+export default function UsersPage(){
+const[users,setUsers]=useState<P[]>([])
+const[loading,setLoading]=useState(true)
+const[show,setShow]=useState(false)
+const[form,setForm]=useState({email:'',full_name:'',phone:'',role:'user'})
+const[saving,setSaving]=useState(false)
+const[err,setErr]=useState<string|null>(null)
+async function load(){setLoading(true);const{data}=await supabase.from('profiles').select('*').order('created_at',{ascending:false});setUsers(data||[]);setLoading(false)}
+useEffect(()=>{load()},[])
+async function create(e:React.FormEvent){e.preventDefault();if(!form.email)return;setSaving(true);const{error}=await supabase.from('profiles').insert([{email:form.email,full_name:form.full_name||null,phone:form.phone||null,role:form.role,created_at:new Date().toISOString()}]);setSaving(false);if(error){setErr(error.message);return};setShow(false);load()}
+return(<div className="p-6"><div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold">Usuarios</h1><button onClick={()=>setShow(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg">+ Crear usuario</button></div>
+{show&&<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div className="bg-white rounded-xl p-6 w-96"><h2 className="font-bold mb-4">Nuevo usuario</h2><form onSubmit={create} className="space-y-3"><input type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="w-full border rounded px-3 py-2 text-sm" required/><input placeholder="Nombre" value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} className="w-full border rounded px-3 py-2 text-sm"/><select value={form.role} onChange={e=>setForm({...form,role:e.target.value})} className="w-full border rounded px-3 py-2 text-sm"><option value="user">Usuario</option><option value="admin">Admin</option></select>{err&&<p className="text-red-600 text-sm">{err}</p>}<div className="flex gap-2"><button type="button" onClick={()=>setShow(false)} className="flex-1 border rounded py-2 text-sm">Cancelar</button><button type="submit" disabled={saving} className="flex-1 bg-blue-600 text-white rounded py-2 text-sm">{saving?'...':'Crear'}</button></div></form></div></div>}
+<div className="bg-white shadow rounded overflow-hidden"><table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs text-gray-500">Email</th><th className="px-4 py-3 text-left text-xs text-gray-500">Nombre</th><th className="px-4 py-3 text-left text-xs text-gray-500">Rol</th></tr></thead><tbody>{users.map(u=><tr key={u.id} className="border-t"><td className="px-4 py-3 text-sm">{u.email}</td><td className="px-4 py-3 text-sm">{u.full_name||'-'}</td><td className="px-4 py-3 text-sm">{u.role}</td></tr>)}</tbody></table></div>
+</div>)}
