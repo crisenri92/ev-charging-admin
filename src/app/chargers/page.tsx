@@ -185,7 +185,11 @@ export default function ChargersPage() {
                   <td className="px-4 py-3 text-gray-600">{c.power_kw ?? '—'}</td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => openEdit(c)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Editar</button>
-                    <button onClick={() => setDeleteId(c.id)} className="text-red-600 hover:text-red-800 text-xs font-medium">Eliminar</button>
+                    <button
+                  onClick={() => { setLocationModal(c); setLocationInput(c.latitude ? `${c.latitude},${c.longitude}` : '') }}
+                  className="text-blue-500 hover:text-blue-700 text-xs font-medium mr-2"
+                >📍 Ubicación</button>
+                <button onClick={() => setDeleteId(c.id)} className="text-red-600 hover:text-red-800 text-xs font-medium">Eliminar</button>
                   </td>
                 </tr>
               ))}
