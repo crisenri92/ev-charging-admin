@@ -1,8 +1,10 @@
 'use client'
-
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+
+const ChargerMap = dynamic(() => import('@/components/ChargerMap'), { ssr: false })
 
 interface Charger {
   id: string
@@ -10,24 +12,36 @@ interface Charger {
   status: string
   location: string | null
   power_kw: number | null
+  latitude: number | null
+  longitude: number | null
 }
+
+// Known coordinates for chargers (fallback if no lat/lon in DB)
+const KNOWN_COORDS: Record<string, [number, number]> = {
+  'CHARGER001': [-0.2295, -78.5243],  // Quito, Ecuador - update with real coords
+}
+
+const DEFAULT_COORDS: [number, number] = [-0.2295, -78.5243]
 
 export default function Dashboard() {
   const [chargers, setChargers] = useState<Charger[]>([])
-  const [counts, setCounts] = useState({ total:0, available:0, charging:0, sessions:0 })
+  const [counts, setCounts] = useState({ total: 0, available: 0, charging: 0, sessions: 0 })
   const [loading, setLoading] = useState(true)
-  const [updated, setUpdated] = useState<Date|null>(null)
+  const [updated, setUpdated] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
     const [cr, sr] = await Promise.all([
       supabase.from('chargers').select('*'),
-      supabase.from('charging_sessions').select('id').gte('start_time', new Date(new Date().setHours(0,0,0,0)).toISOString()),
+      supabase.from('charging_sessions').select('id').gte(
+        'start_time',
+        new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+      ),
     ])
-    const data = cr.data || []
+    const data: Charger[] = cr.data || []
     setCounts({
       total: data.length,
-      available: data.filter((c: Charger) => c.status?.toLowerCase() === 'available').length,
-      charging: data.filter((c: Charger) => c.status?.toLowerCase() === 'charging').length,
+      available: data.filter((c) => c.status?.toLowerCase() === 'available').length,
+      charging: data.filter((c) => c.status?.toLowerCase() === 'charging').length,
       sessions: sr.data?.length || 0,
     })
     setChargers(data)
@@ -37,83 +51,106 @@ export default function Dashboard() {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('dash').on('postgres_changes',{event:'*',schema:'public',table:'chargers'},load).subscribe()
+    const ch = supabase
+      .channel('dash')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chargers' }, load)
+      .subscribe()
     const t = setInterval(load, 30000)
     return () => { supabase.removeChannel(ch); clearInterval(t) }
   }, [load])
 
-  const cards = [
-    { label:'Total cargadores', value:counts.total, color:'bg-gray-900', icon:'⚡' },
-    { label:'Disponibles', value:counts.available, color:'bg-green-600', icon:'✓' },
-    { label:'En carga', value:counts.charging, color:'bg-blue-600', icon:'🔋' },
-    { label:'Sesiones hoy', value:counts.sessions, color:'bg-purple-600', icon:'📊' },
+  const mapChargers = chargers.map((c) => {
+    const coords = (c.latitude && c.longitude)
+      ? [c.latitude, c.longitude] as [number, number]
+      : KNOWN_COORDS[c.id] || DEFAULT_COORDS
+    return { ...c, lat: coords[0], lng: coords[1] }
+  })
+
+  const handleLogout = async () => {
+    await fetch('/api/logout', { method: 'POST' })
+    window.location.href = '/login'
+  }
+
+  const stats = [
+    { label: 'Total Cargadores', value: counts.total, color: 'bg-blue-500', icon: '⚡' },
+    { label: 'Disponibles', value: counts.available, color: 'bg-green-500', icon: '✅' },
+    { label: 'En Carga', value: counts.charging, color: 'bg-yellow-500', icon: '🔋' },
+    { label: 'Sesiones Hoy', value: counts.sessions, color: 'bg-purple-500', icon: '📅' },
   ]
 
-  const online = chargers.filter((c: Charger) => c.status?.toLowerCase() !== 'offline')
-  const offline2 = chargers.filter((c: Charger) => c.status?.toLowerCase() === 'offline')
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Panel de Control</h1>
-        <p className="text-xs text-gray-400">{updated ? `Actualizado: ${updated.toLocaleTimeString('es-MX')}` : 'Cargando...'}</p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map(c => (
-          <div key={c.label} className={`${c.color} text-white rounded-xl p-5 shadow`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl">{c.icon}</span>
-              {loading ? <div className="w-8 h-8 rounded-full bg-white/20 animate-pulse"/> : <span className="text-3xl font-bold">{c.value}</span>}
-            </div>
-            <p className="text-sm text-white/80">{c.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-xl shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">Cargadores en línea</h2>
-          <Link href="/chargers" className="text-sm text-blue-600 hover:text-blue-800">Ver todos</Link>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          {updated && (
+            <p className="text-gray-400 text-sm mt-1">
+              Actualizado: {updated.toLocaleTimeString('es-EC')}
+            </p>
+          )}
         </div>
-        {loading ? <div className="text-center py-8 text-gray-400">Cargando...</div>
-        : online.length === 0 ? <div className="text-center py-8 text-gray-400">Sin cargadores en línea</div>
-        : (
-          <div className="space-y-3">
-            {online.map((c: Charger) => (
-              <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex h-3 w-3">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${c.status?.toLowerCase()==='charging'?'bg-blue-400':'bg-green-400'}`}/>
-                    <span className={`relative inline-flex rounded-full h-3 w-3 ${c.status?.toLowerCase()==='charging'?'bg-blue-500':'bg-green-500'}`}/>
-                  </div>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-gray-700 hover:bg-red-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      ) : (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
+            {stats.map((s) => (
+              <div key={s.label} className="bg-gray-800 rounded-xl p-5 flex items-center gap-4">
+                <div className={`${s.color} rounded-full w-12 h-12 flex items-center justify-center text-xl shrink-0`}>
+                  {s.icon}
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">{s.label}</p>
+                  <p className="text-white text-2xl font-bold">{s.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Map */}
+          <div className="bg-gray-800 rounded-xl p-4 mb-8">
+            <h2 className="text-white font-semibold mb-3">🗺️ Ubicación de Cargadores</h2>
+            <ChargerMap chargers={mapChargers} />
+          </div>
+
+          {/* Charger list */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="text-white font-semibold mb-3">Estado de Cargadores</h2>
+            <div className="space-y-2">
+              {chargers.length === 0 ? (
+                <p className="text-gray-400 text-sm">No hay cargadores registrados.</p>
+              ) : chargers.map((c) => (
+                <div key={c.id} className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{c.name||c.id}</p>
-                    <p className="text-xs text-gray-500">{c.location||'Sin ubicación'}</p>
+                    <p className="text-white font-medium">{c.name || c.id}</p>
+                    <p className="text-gray-400 text-xs">{c.location || 'Sin ubicación'} &bull; {c.power_kw ? `${c.power_kw} kW` : 'N/A'}</p>
                   </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    c.status?.toLowerCase() === 'available' ? 'bg-green-900 text-green-300'
+                    : c.status?.toLowerCase() === 'charging' ? 'bg-blue-900 text-blue-300'
+                    : 'bg-gray-600 text-gray-300'
+                  }`}>
+                    {c.status}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${c.status?.toLowerCase()==='charging'?'bg-blue-100 text-blue-800':'bg-green-100 text-green-800'}`}>{c.status}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="mt-3 text-right">
+              <Link href="/chargers" className="text-blue-400 hover:text-blue-300 text-sm">Ver todos los cargadores →</Link>
+            </div>
           </div>
-        )}
-      </div>
-
-      {!loading && offline2.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Fuera de línea</h2>
-          <div className="space-y-2">
-            {offline2.map((c: Charger) => (
-              <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-red-400"/>
-                  <p className="text-sm font-medium text-gray-800">{c.name||c.id}</p>
-                </div>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">{c.status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        </>
       )}
     </div>
   )
