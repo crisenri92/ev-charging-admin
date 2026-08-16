@@ -39,6 +39,11 @@ export default function ChargersPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [locationModal, setLocationModal] = useState<Charger | null>(null)
+  const [locationInput, setLocationInput] = useState('')
+  const [locSaving, setLocSaving] = useState(false)
+  const [locMsg, setLocMsg] = useState('')
+
 
   const fetchChargers = useCallback(async () => {
     const { data, error } = await supabase.from('chargers').select('*').order('created_at', { ascending: false })
@@ -113,6 +118,24 @@ export default function ChargersPage() {
     const { error } = await supabase.from('chargers').delete().eq('id', id)
     if (error) setError(error.message)
     else { setDeleteId(null); fetchChargers() }
+  }
+
+  const handleSaveLocation = async () => {
+    if (!locationModal) return
+    setLocSaving(true); setLocMsg('')
+    const res = await fetch(`/api/chargers/${locationModal.id}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ location_input: locationInput })
+    })
+    const d = await res.json()
+    if (res.ok) {
+      setLocMsg('✅ Ubicación guardada')
+      setTimeout(() => { setLocationModal(null); setLocMsg('') }, 1500)
+    } else {
+      setLocMsg('❌ ' + d.error)
+    }
+    setLocSaving(false)
   }
 
   return (

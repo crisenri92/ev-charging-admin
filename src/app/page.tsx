@@ -104,7 +104,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-2 md:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="bg-gray-800 rounded-xl p-5 flex items-center gap-4">
                 <div className={`${s.color} rounded-full w-12 h-12 flex items-center justify-center text-xl shrink-0`}>
