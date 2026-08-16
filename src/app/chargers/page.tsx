@@ -269,6 +269,28 @@ export default function ChargersPage() {
           </div>
         </div>
       )}
+      {locationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-6 text-white">
+            <h2 className="text-lg font-semibold mb-1">Ubicacion del cargador</h2>
+            <p className="text-gray-400 text-sm mb-4">{locationModal.id}</p>
+            <input
+              type="text"
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              placeholder="-0.2295, -78.5243 o URL de Google Maps"
+              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:border-green-500"
+            />
+            {locMsg && <p className="text-sm mb-3">{locMsg}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => { setLocationModal(null); setLocMsg("") }} className="flex-1 border border-gray-600 text-gray-300 py-2 rounded-lg text-sm">Cancelar</button>
+              <button onClick={handleSaveLocation} disabled={locSaving} className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm disabled:opacity-50">
+                {locSaving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
