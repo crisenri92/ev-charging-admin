@@ -56,7 +56,7 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="pt-14 md:pt-0 p-4 md:p-6">
+    <div className="">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
         <button onClick={exportCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">
@@ -78,7 +78,7 @@ export default function SessionsPage() {
       {loading ? (
         <p className="text-center text-gray-400 py-10">Cargando...</p>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 shadow rounded-lg overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 shadow rounded-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-800">
             <thead className="bg-gray-800">
               <tr>

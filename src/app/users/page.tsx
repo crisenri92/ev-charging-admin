@@ -67,11 +67,11 @@ export default function UsersPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Cargando...</div>
+        <div className="text-center py-12 text-gray-400">Cargando...</div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-800 border-b">
               <tr>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Nombre</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Email</th>
@@ -86,7 +86,7 @@ export default function UsersPage() {
                 <tr><td colSpan={6} className="text-center py-8 text-gray-400">Sin usuarios registrados</td></tr>
               )}
               {profiles.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
+                <tr key={p.id} className="hover:bg-gray-800">
                   <td className="px-4 py-3 font-medium">{p.full_name || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{p.email || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{p.phone || '—'}</td>
@@ -95,7 +95,7 @@ export default function UsersPage() {
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">{p.role}</span>
                     ) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(p.created_at).toLocaleDateString('es-MX')}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(p.created_at).toLocaleDateString('es-MX')}</td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => openEdit(p)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Editar</button>
                     <button onClick={() => setDeleteId(p.id)} className="text-red-600 hover:text-red-800 text-xs font-medium">Eliminar</button>
@@ -133,7 +133,7 @@ export default function UsersPage() {
               </div>
             </div>
             <div className="flex gap-3 px-6 pb-6">
-              <button onClick={() => setEditingUser(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => setEditingUser(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
@@ -149,7 +149,7 @@ export default function UsersPage() {
             <h2 className="text-lg font-semibold mb-2">¿Eliminar usuario?</h2>
             <p className="text-gray-600 text-sm mb-6">Esta acción no se puede deshacer.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => setDeleteId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
               <button onClick={() => handleDelete(deleteId)} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm hover:bg-red-700">Eliminar</button>
             </div>
           </div>

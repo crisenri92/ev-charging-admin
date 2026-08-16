@@ -79,9 +79,9 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">Dashboard</h1>
           {updated && (
             <p className="text-gray-400 text-sm mt-1">
               Actualizado: {updated.toLocaleTimeString('es-EC')}
@@ -103,7 +103,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-2 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 mb-6 md:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="bg-gray-800 rounded-xl p-5 flex items-center gap-4">
                 <div className={`${s.color} rounded-full w-12 h-12 flex items-center justify-center text-xl shrink-0`}>
@@ -118,7 +118,7 @@ export default function Dashboard() {
           </div>
 
           {/* Map */}
-          <div className="bg-gray-800 rounded-xl p-4 mb-8">
+          <div className="bg-gray-800 rounded-xl p-3 mb-6">
             <h2 className="text-white font-semibold mb-3">🗺️ Ubicación de Cargadores</h2>
             <ChargerMap chargers={mapChargers} />
           </div>

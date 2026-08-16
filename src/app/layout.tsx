@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-gray-950 text-white`}>
         <div className="flex min-h-screen">
           <ConditionalSidebar />
-          <main className="flex-1 p-4 md:p-8 overflow-auto min-w-0">
+          <main className="flex-1 pt-16 p-4 md:p-8 overflow-auto min-w-0">
             {children}
           </main>
         </div>

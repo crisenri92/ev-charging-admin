@@ -152,11 +152,11 @@ export default function ChargersPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Cargando...</div>
+        <div className="text-center py-12 text-gray-400">Cargando...</div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-800 border-b">
               <tr>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">ID</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">Nombre</th>
@@ -172,7 +172,7 @@ export default function ChargersPage() {
                 <tr><td colSpan={7} className="text-center py-8 text-gray-400">Sin cargadores registrados</td></tr>
               )}
               {chargers.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
+                <tr key={c.id} className="hover:bg-gray-800">
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.id}</td>
                   <td className="px-4 py-3 font-medium">{c.name || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{c.latitude ? c.latitude.toFixed(4) + ", " + c.longitude.toFixed(4) : '—'}</td>
@@ -245,7 +245,7 @@ export default function ChargersPage() {
               </div>
             </div>
             <div className="flex gap-3 px-6 pb-6">
-              <button onClick={() => setModalOpen(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => setModalOpen(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
@@ -261,7 +261,7 @@ export default function ChargersPage() {
             <h2 className="text-lg font-semibold mb-2">¿Eliminar cargador?</h2>
             <p className="text-gray-600 text-sm mb-6">Esta acción no se puede deshacer.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => setDeleteId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
               <button onClick={() => handleDelete(deleteId)} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm hover:bg-red-700">Eliminar</button>
             </div>
           </div>
