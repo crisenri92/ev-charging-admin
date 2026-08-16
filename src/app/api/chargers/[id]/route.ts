@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const { error } = await supabase
     .from('chargers')
-    .update({ latitude: coords.lat, longitude: coords.lng, address: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` })
+    .update({ latitude: coords.lat, longitude: coords.lng })
     .eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, lat: coords.lat, lng: coords.lng })

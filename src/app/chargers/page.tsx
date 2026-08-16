@@ -8,7 +8,6 @@ type ChargerStatus = 'available' | 'charging' | 'offline'
 interface Charger {
   id: string
   name: string | null
-  address: string | null
   status: ChargerStatus
   type: string | null
   power_kw: number | null
@@ -20,7 +19,6 @@ interface Charger {
 const emptyForm: Omit<Charger, 'created_at'> = {
   id: '',
   name: '',
-  address: '',
   status: 'available',
   type: '',
   power_kw: null,
@@ -79,7 +77,7 @@ export default function ChargersPage() {
   }
 
   const openEdit = (c: Charger) => {
-    setForm({ id: c.id, name: c.name || '', address: c.address || '', status: c.status, type: c.type || '', power_kw: c.power_kw })
+    setForm({ id: c.id, name: c.name || '',  status: c.status, type: c.type || '', power_kw: c.power_kw })
     setEditingId(c.id)
     setModalOpen(true)
   }
@@ -91,7 +89,7 @@ export default function ChargersPage() {
       if (editingId) {
         const { error } = await supabase.from('chargers').update({
           name: form.name,
-          address: form.address,
+          
           status: form.status,
           type: form.type,
           power_kw: form.power_kw,
@@ -101,7 +99,7 @@ export default function ChargersPage() {
         const { error } = await supabase.from('chargers').insert({
           id: form.id,
           name: form.name,
-          address: form.address,
+          
           status: form.status,
           type: form.type,
           power_kw: form.power_kw,
@@ -177,7 +175,7 @@ export default function ChargersPage() {
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.id}</td>
                   <td className="px-4 py-3 font-medium">{c.name || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.address || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.latitude ? c.latitude.toFixed(4) + ", " + c.longitude.toFixed(4) : '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[c.status]}`}>
                       {c.status}
@@ -223,7 +221,7 @@ export default function ChargersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
-                <input value={form.address || ''} onChange={e => setForm(f => ({...f, address: e.target.value}))}
+                <input value={form.address_unused || ''} onChange={e => setForm(f => ({...f, address_unused: e.target.value}))}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>

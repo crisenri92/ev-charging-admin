@@ -10,7 +10,6 @@ interface Charger {
   id: string
   name: string | null
   status: string
-  address: string | null
   power_kw: number | null
   latitude: number | null
   longitude: number | null
@@ -134,7 +133,7 @@ export default function Dashboard() {
                 <div key={c.id} className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3">
                   <div>
                     <p className="text-white font-medium">{c.name || c.id}</p>
-                    <p className="text-gray-400 text-xs">{c.address || 'Sin ubicación'} &bull; {c.power_kw ? `${c.power_kw} kW` : 'N/A'}</p>
+                    <p className="text-gray-400 text-xs">{c.latitude ? c.latitude.toFixed(4) + ', ' + c.longitude.toFixed(4) : 'Sin coordenadas'} &bull; {c.power_kw ? `${c.power_kw} kW` : 'N/A'}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                     c.status?.toLowerCase() === 'available' ? 'bg-green-900 text-green-300'
