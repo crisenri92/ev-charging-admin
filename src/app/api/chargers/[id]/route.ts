@@ -20,7 +20,8 @@ function parseLocation(input: string): { lat: number; lng: number } | null {
   return null
 }
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const { location_input } = await request.json()
   const coords = parseLocation(location_input)
   if (!coords) {
@@ -29,7 +30,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { error } = await supabase
     .from('chargers')
     .update({ latitude: coords.lat, longitude: coords.lng })
-    .eq('id', params.id)
+    .eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, lat: coords.lat, lng: coords.lng })
 }
