@@ -1,18 +1,25 @@
 
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function POST(request: Request) {
   const { email, password } = await request.json()
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  // Sign in with anon key
+  const authClient = createClient(supabaseUrl, supabaseAnonKey)
+  const { data, error } = await authClient.auth.signInWithPassword({ email, password })
 
   if (error || !data.user) {
     return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 })
   }
 
-  // Check if user has admin role
-  const { data: profile } = await supabase
+  // Check admin role using service role key (bypasses RLS)
+  const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+  const { data: profile } = await adminClient
     .from('profiles')
     .select('role')
     .eq('id', data.user.id)
@@ -28,7 +35,7 @@ export async function POST(request: Request) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
     path: '/'
   })
   return response
