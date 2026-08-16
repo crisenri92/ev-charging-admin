@@ -12,6 +12,8 @@ interface Charger {
   status: ChargerStatus
   type: string | null
   power_kw: number | null
+  latitude?: number | null
+  longitude?: number | null
   created_at: string
 }
 
