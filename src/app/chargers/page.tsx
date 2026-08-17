@@ -1,6 +1,7 @@
 
 'use client'
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from '@/components/Toast'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -48,6 +49,7 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
       name: form.name || null,
       price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
     }).eq('id', charger.id)
+      toast('Cargador actualizado')
     setSaving(false)
     onSave()
     onClose()
@@ -153,6 +155,7 @@ export default function ChargersPage() {
 
   const handleDelete = async (id: string) => {
     await supabase.from('chargers').delete().eq('id', id)
+    toast('Cargador eliminado')
     setDeleteTarget(null)
     fetchChargers()
   }
@@ -161,6 +164,7 @@ export default function ChargersPage() {
     if (!newId.trim()) return
     setAdding(true)
     await supabase.from('chargers').insert({ id: newId.trim(), status: 'Offline' })
+    toast('Cargador agregado')
     setNewId('')
     setShowAdd(false)
     setAdding(false)
