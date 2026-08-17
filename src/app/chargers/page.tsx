@@ -188,7 +188,7 @@ export default function ChargersPage() {
           </div>
         ) : chargers.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
-            <p className="text-5xl mb-3">⚡</p>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 mx-auto mb-3 opacity-20"><path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.268a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" /></svg>
             <p className="font-medium text-gray-400 mb-1">No hay cargadores</p>
             <p className="text-sm">Agrega tu primer cargador para comenzar</p>
           </div>
@@ -219,7 +219,7 @@ export default function ChargersPage() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setEditTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md border border-gray-700 transition-colors">Editar</button>
-                      <button onClick={() => setLocationTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors">📍 Ubicación</button>
+                      <button onClick={() => setLocationTarget(c)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='w-3 h-3'><path fillRule='evenodd' d='M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.083 3.964-5.129 3.964-8.827a8.25 8.25 0 00-16.5 0c0 3.698 2.02 6.744 3.964 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z' clipRule='evenodd' /></svg>Ubicación</button>
                       <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
                     </div>
                   </td>

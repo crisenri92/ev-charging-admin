@@ -54,7 +54,7 @@ export default function UsersPage() {
           <p className="text-sm text-gray-400 mt-0.5">{users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">&#128269;</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"><path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" /></svg>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por email o nombre..."
@@ -70,7 +70,7 @@ export default function UsersPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
-            <p className="text-5xl mb-3">&#128101;</p>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 mx-auto mb-3 opacity-20"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
             <p className="font-medium text-gray-400 mb-1">{search ? 'Sin resultados' : 'No hay usuarios'}</p>
             <p className="text-sm">{search ? `No se encontraron usuarios con "${search}"` : 'Los usuarios aparecen aquí cuando se registran'}</p>
           </div>
