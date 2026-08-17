@@ -108,7 +108,7 @@ export default function Dashboard() {
       {/* Map */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
         <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">📍 Ubicación de Cargadores</h2>
-        <MapComponent chargers={chargers} />
+        <MapComponent chargers={chargers.filter(c => c.latitude != null && c.longitude != null).map(c => ({ name: c.name, status: c.status ?? "Unknown", location: null, lat: c.latitude!, lng: c.longitude! }))} />
       </div>
 
       {/* Charger Status List */}
