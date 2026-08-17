@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import dynamic from 'next/dynamic'
 
-const MapComponent = dynamic(() => import('@/components/MapComponent'), { ssr: false })
+const MapComponent = dynamic(() => import('@/components/ChargerMap'), { ssr: false })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
