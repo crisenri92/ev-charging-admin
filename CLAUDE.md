@@ -17,3 +17,8 @@ const normalizedId = chargePointId.replace(/_/g, '').toUpperCase()
 ```
 
 Si se agrega un endpoint `/api/ocpp/route.ts` en el futuro, aplicar la normalización ahí antes de cualquier operación Supabase.
+
+## Fix aplicado (2026-08-17)
+
+- Eliminado duplicado CHARGER_001, sesiones migradas a CHARGER001
+- Creado trigger `normalize_charger_id_trigger` en Supabase: normaliza IDs en INSERT/UPDATE (UPPER + quita guiones bajos)
