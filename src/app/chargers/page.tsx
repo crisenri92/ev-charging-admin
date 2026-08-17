@@ -1,253 +1,248 @@
+
 'use client'
+import { useEffect, useState, useCallback } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-
-type ChargerStatus = 'available' | 'charging' | 'offline'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface Charger {
   id: string
   name: string | null
-  status: ChargerStatus
-  type: string | null
-  power_kw: number | null
-  latitude?: number | null
-  longitude?: number | null
-  created_at: string
+  status: string | null
+  latitude: number | null
+  longitude: number | null
+  price_per_kwh: number | null
+  firmware: string | null
+  serial_number: string | null
+  last_heartbeat: string | null
 }
 
-const emptyForm: Omit<Charger, 'created_at'> = {
-  id: '',
-  name: '',
-  status: 'available',
-  type: '',
-  power_kw: null,
+function StatusBadge({ status }: { status: string | null }) {
+  const map: Record<string, { label: string; dot: string; cls: string }> = {
+    Available:  { label: 'Disponible', dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+    Charging:   { label: 'Cargando',   dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+    Faulted:    { label: 'Falla',       dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
+    Offline:    { label: 'Offline',     dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+    Unavailable:{ label: 'No disponible',dot:'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+  }
+  const s = status ?? 'Offline'
+  const m = map[s] ?? map['Offline']
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${m.cls}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m.dot} ${s === 'Charging' ? 'animate-pulse' : ''}`} />
+      {m.label}
+    </span>
+  )
 }
 
-const statusColors: Record<ChargerStatus, string> = {
-  available: 'bg-green-100 text-green-800',
-  charging: 'bg-blue-100 text-blue-800',
-  offline: 'bg-red-100 text-red-800',
+function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: () => void; onSave: () => void }) {
+  const [form, setForm] = useState({ name: charger.name ?? '', price_per_kwh: charger.price_per_kwh ?? '' })
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    await supabase.from('chargers').update({
+      name: form.name || null,
+      price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
+    }).eq('id', charger.id)
+    setSaving(false)
+    onSave()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-white">Editar Cargador</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Nombre</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder={charger.id}
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-gray-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Precio por kWh ($)</label>
+            <input type="number" step="0.01" value={form.price_per_kwh} onChange={e => setForm(f => ({ ...f, price_per_kwh: e.target.value }))}
+              placeholder="0.00"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-gray-500" />
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-gray-500"><span className="text-gray-400">ID:</span> {charger.id}</p>
+            {charger.serial_number && <p className="text-xs text-gray-500"><span className="text-gray-400">Serial:</span> {charger.serial_number}</p>}
+            {charger.firmware && <p className="text-xs text-gray-500"><span className="text-gray-400">Firmware:</span> {charger.firmware}</p>}
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors border border-gray-700">Cancelar</button>
+          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LocationModal({ charger, onClose, onSave }: { charger: Charger; onClose: () => void; onSave: () => void }) {
+  const [url, setUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    const res = await fetch(`/api/chargers/${charger.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: url }) })
+    if (res.ok) { onSave(); onClose() }
+    else { setError('No se pudo parsear la ubicación. Pega el link de Google Maps.'); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-white">Establecer Ubicación</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+        {charger.latitude && (
+          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-400">
+            Ubicación actual: {charger.latitude.toFixed(6)}, {charger.longitude?.toFixed(6)}
+          </div>
+        )}
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Link de Google Maps</label>
+          <input value={url} onChange={e => setUrl(e.target.value)}
+            placeholder="https://maps.app.goo.gl/..."
+            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-gray-500" />
+          {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors border border-gray-700">Cancelar</button>
+          <button onClick={save} disabled={saving || !url} className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+            {saving ? 'Guardando...' : 'Guardar ubicación'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function ChargersPage() {
   const [chargers, setChargers] = useState<Charger[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
-  const [saving, setSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [locationModal, setLocationModal] = useState<Charger | null>(null)
-  const [locationInput, setLocationInput] = useState('')
-  const [locSaving, setLocSaving] = useState(false)
-  const [locMsg, setLocMsg] = useState('')
-
+  const [editTarget, setEditTarget] = useState<Charger | null>(null)
+  const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [newId, setNewId] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const fetchChargers = useCallback(async () => {
-    const { data, error } = await supabase.from('chargers').select('*').order('created_at', { ascending: false })
-    if (error) setError(error.message)
-    else setChargers(data || [])
+    const { data } = await supabase.from('chargers').select('*').order('created_at')
+    setChargers(data ?? [])
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    fetchChargers()
-
-    const channel = supabase
-      .channel('chargers-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chargers' }, () => {
-        fetchChargers()
-      })
-      .subscribe()
-
-    const interval = setInterval(fetchChargers, 30000)
-
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(interval)
-    }
-  }, [fetchChargers])
-
-  const openAdd = () => {
-    setForm(emptyForm)
-    setEditingId(null)
-    setModalOpen(true)
-  }
-
-  const openEdit = (c: Charger) => {
-    setForm({ id: c.id, name: c.name || '',  status: c.status, type: c.type || '', power_kw: c.power_kw })
-    setEditingId(c.id)
-    setModalOpen(true)
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    setError(null)
-    try {
-      if (editingId) {
-        const { error } = await supabase.from('chargers').update({
-          name: form.name,
-          
-          status: form.status,
-          type: form.type,
-          power_kw: form.power_kw,
-        }).eq('id', editingId)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('chargers').insert({
-          id: form.id,
-          name: form.name,
-          
-          status: form.status,
-          type: form.type,
-          power_kw: form.power_kw,
-        })
-        if (error) throw error
-      }
-      setModalOpen(false)
-      fetchChargers()
-    } catch (e: any) {
-      setError(e.message)
-    }
-    setSaving(false)
-  }
+  useEffect(() => { fetchChargers() }, [fetchChargers])
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('chargers').delete().eq('id', id)
-    if (error) setError(error.message)
-    else { setDeleteId(null); fetchChargers() }
+    await supabase.from('chargers').delete().eq('id', id)
+    setDeleteTarget(null)
+    fetchChargers()
   }
 
-  const handleSaveLocation = async () => {
-    if (!locationModal) return
-    setLocSaving(true); setLocMsg('')
-    const res = await fetch(`/api/chargers/${locationModal.id}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ location_input: locationInput })
-    })
-    const d = await res.json()
-    if (res.ok) {
-      setLocMsg('✅ Ubicación guardada')
-      setTimeout(() => { setLocationModal(null); setLocMsg('') }, 1500)
-    } else {
-      setLocMsg('❌ ' + d.error)
-    }
-    setLocSaving(false)
+  const handleAdd = async () => {
+    if (!newId.trim()) return
+    setAdding(true)
+    await supabase.from('chargers').insert({ id: newId.trim(), status: 'Offline' })
+    setNewId('')
+    setShowAdd(false)
+    setAdding(false)
+    fetchChargers()
   }
 
   return (
-    <div className="p-6">
+    <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Cargadores</h1>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-white">Cargadores</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{chargers.length} cargador{chargers.length !== 1 ? 'es' : ''} registrado{chargers.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
           + Agregar cargador
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>
-      )}
-
-      {loading ? (
-        <div className="text-center py-12 text-gray-400">Cargando...</div>
-      ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-800 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">ID</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Nombre</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Ubicación</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Estado</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tipo</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Potencia (kW)</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">Acciones</th>
+      {/* Table */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
+        {loading ? (
+          <div className="p-8 space-y-3">
+            {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-800 rounded-lg animate-pulse" />)}
+          </div>
+        ) : chargers.length === 0 ? (
+          <div className="text-center py-16 text-gray-500">
+            <p className="text-5xl mb-3">⚡</p>
+            <p className="font-medium text-gray-400 mb-1">No hay cargadores</p>
+            <p className="text-sm">Agrega tu primer cargador para comenzar</p>
+          </div>
+        ) : (
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-gray-800">
+                {['ID / Nombre', 'Estado', 'Ubicación', 'Precio/kWh', 'Firmware', 'Acciones'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {chargers.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">Sin cargadores registrados</td></tr>
-              )}
-              {chargers.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-800">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.id}</td>
-                  <td className="px-4 py-3 font-medium">{c.name || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.latitude ? c.latitude.toFixed(4) + ", " + c.longitude.toFixed(4) : '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[c.status]}`}>
-                      {c.status}
-                    </span>
+            <tbody className="divide-y divide-gray-800/50">
+              {chargers.map(c => (
+                <tr key={c.id} className="hover:bg-gray-800/30 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <p className="font-medium text-white text-sm">{c.name || c.id}</p>
+                    {c.name && <p className="text-xs text-gray-500 mt-0.5">{c.id}</p>}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.type || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.power_kw ?? '—'}</td>
-                  <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => openEdit(c)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Editar</button>
-                    <button
-                  onClick={() => { setLocationModal(c); setLocationInput(c.latitude ? `${c.latitude},${c.longitude}` : '') }}
-                  className="text-blue-500 hover:text-blue-700 text-xs font-medium mr-2"
-                >📍 Ubicación</button>
-                <button onClick={() => setDeleteId(c.id)} className="text-red-600 hover:text-red-800 text-xs font-medium">Eliminar</button>
+                  <td className="px-4 py-3.5"><StatusBadge status={c.status} /></td>
+                  <td className="px-4 py-3.5 text-sm text-gray-400">
+                    {c.latitude ? `${c.latitude.toFixed(4)}, ${c.longitude?.toFixed(4)}` : <span className="text-gray-600">Sin coordenadas</span>}
+                  </td>
+                  <td className="px-4 py-3.5 text-sm text-gray-300">
+                    {c.price_per_kwh ? `$${c.price_per_kwh.toFixed(2)}` : <span className="text-gray-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3.5 text-xs text-gray-500">{c.firmware ?? <span className="text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEditTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md border border-gray-700 transition-colors">Editar</button>
+                      <button onClick={() => setLocationTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors">📍 Ubicación</button>
+                      <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Add/Edit Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-semibold">{editingId ? 'Editar cargador' : 'Agregar cargador'}</h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              {!editingId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID</label>
-                  <input value={form.id} onChange={e => setForm(f => ({...f, id: e.target.value}))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                <input value={form.name || ''} onChange={e => setForm(f => ({...f, name: e.target.value}))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
-                <input value={form.address_unused || ''} onChange={e => setForm(f => ({...f, address_unused: e.target.value}))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value as ChargerStatus}))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="available">available</option>
-                  <option value="charging">charging</option>
-                  <option value="offline">offline</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <input value={form.type || ''} onChange={e => setForm(f => ({...f, type: e.target.value}))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Potencia (kW)</label>
-                <input type="number" value={form.power_kw ?? ''} onChange={e => setForm(f => ({...f, power_kw: e.target.value ? Number(e.target.value) : null}))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <div className="flex gap-3 px-6 pb-6">
-              <button onClick={() => setModalOpen(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-                {saving ? 'Guardando...' : 'Guardar'}
+      {/* Add Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="text-lg font-semibold text-white mb-4">Agregar Cargador</h2>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">ID del Cargador (OCPP)</label>
+            <input value={newId} onChange={e => setNewId(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              placeholder="CHARGER_001"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500 mb-4" />
+            <div className="flex gap-3">
+              <button onClick={() => setShowAdd(false)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
+              <button onClick={handleAdd} disabled={adding || !newId.trim()} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
+                {adding ? 'Agregando...' : 'Agregar'}
               </button>
             </div>
           </div>
@@ -255,40 +250,23 @@ export default function ChargersPage() {
       )}
 
       {/* Delete Confirm */}
-      {deleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-semibold mb-2">¿Eliminar cargador?</h2>
-            <p className="text-gray-600 text-sm mb-6">Esta acción no se puede deshacer.</p>
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="text-lg font-semibold text-white mb-2">¿Eliminar cargador?</h2>
+            <p className="text-sm text-gray-400 mb-6">Esta acción no se puede deshacer. El cargador <span className="text-white font-mono">{deleteTarget}</span> será eliminado permanentemente.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-800">Cancelar</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm hover:bg-red-700">Eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {locationModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-6 text-white">
-            <h2 className="text-lg font-semibold mb-1">Ubicacion del cargador</h2>
-            <p className="text-gray-400 text-sm mb-4">{locationModal.id}</p>
-            <input
-              type="text"
-              value={locationInput}
-              onChange={(e) => setLocationInput(e.target.value)}
-              placeholder="-0.2295, -78.5243 o URL de Google Maps"
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:border-green-500"
-            />
-            {locMsg && <p className="text-sm mb-3">{locMsg}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => { setLocationModal(null); setLocMsg("") }} className="flex-1 border border-gray-600 text-gray-300 py-2 rounded-lg text-sm">Cancelar</button>
-              <button onClick={handleSaveLocation} disabled={locSaving} className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm disabled:opacity-50">
-                {locSaving ? "Guardando..." : "Guardar"}
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
+              <button onClick={() => handleDelete(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">
+                Eliminar
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
+      {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
     </div>
   )
 }
