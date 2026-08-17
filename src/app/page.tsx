@@ -1,223 +1,190 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import dynamic from 'next/dynamic'
-
-const MapComponent = dynamic(() => import('@/components/ChargerMap'), { ssr: false })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-interface Charger {
-  id: string
-  name: string | null
-  status: string | null
-  price_per_kwh: number | null
-  latitude: number | null
-  longitude: number | null
-  last_heartbeat: string | null
-}
-
-interface Stats {
+interface DashboardStats {
   total: number
   available: number
   charging: number
-  sessionsToday: number
+  offline: number
+  totalKwh: number | null
+  monthRevenue: number | null
+  hasSessions: boolean
 }
 
-function StatusBadge({ status }: { status: string | null }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    Available: { label: 'Disponible', cls: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' },
-    Charging: { label: 'Cargando', cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/30' },
-    Faulted: { label: 'Falla', cls: 'bg-red-500/15 text-red-400 border border-red-500/30' },
-    Offline: { label: 'Offline', cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/30' },
-  }
-  const s = status ?? 'Offline'
-  const { label, cls } = map[s] ?? map['Offline']
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-current" />{label}
-    </span>
-  )
-}
+const StatCard = ({
+  label, value, sub, gradient, border, text, glow, icon
+}: {
+  label: string; value: string | number; sub?: string
+  gradient: string; border: string; text: string; glow: string; icon: React.ReactNode
+}) => (
+  <div className={`relative overflow-hidden rounded-2xl border ${border} bg-gradient-to-br ${gradient} p-5 shadow-lg ${glow}`}>
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wider text-gray-400">{label}</p>
+        <p className={`mt-2 text-3xl font-bold ${text}`}>{value}</p>
+        {sub && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
+      </div>
+      <div className={`rounded-xl border ${border} bg-black/20 p-2.5 ${text}`}>{icon}</div>
+    </div>
+  </div>
+)
 
-const kpiDefs = [
-  {
-    label: 'Total Cargadores',
-    key: 'total' as const,
-    gradient: 'from-blue-600/25 via-blue-600/10 to-blue-600/0',
-    border: 'border-blue-500/25',
-    text: 'text-blue-300',
-    glow: 'shadow-blue-500/10',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.268a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Disponibles',
-    key: 'available' as const,
-    gradient: 'from-emerald-600/25 via-emerald-600/10 to-emerald-600/0',
-    border: 'border-emerald-500/25',
-    text: 'text-emerald-300',
-    glow: 'shadow-emerald-500/10',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
-  {
-    label: 'En Carga',
-    key: 'charging' as const,
-    gradient: 'from-yellow-600/25 via-yellow-600/10 to-yellow-600/0',
-    border: 'border-yellow-500/25',
-    text: 'text-yellow-300',
-    glow: 'shadow-yellow-500/10',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25zM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 116 0h3a.75.75 0 00.75-.75V15z" />
-        <path d="M8.25 19.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0zM15.75 6.75a.75.75 0 00-.75.75v11.25c0 .087.015.17.042.248a3 3 0 015.958.464c.853-.175 1.522-.935 1.464-1.883a18.659 18.659 0 00-3.732-10.104 1.837 1.837 0 00-1.47-.725H15.75z" />
-        <path d="M19.5 19.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Sesiones Hoy',
-    key: 'sessionsToday' as const,
-    gradient: 'from-purple-600/25 via-purple-600/10 to-purple-600/0',
-    border: 'border-purple-500/25',
-    text: 'text-purple-300',
-    glow: 'shadow-purple-500/10',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path fillRule="evenodd" d="M7.502 6h7.128A3.375 3.375 0 0118 9.375v9.375a3 3 0 003-3V6.108c0-1.505-1.125-2.811-2.664-2.94a48.972 48.972 0 00-.673-.05A3 3 0 0015 1.5h-1.5a3 3 0 00-2.663 1.618c-.225.015-.45.032-.673.05C8.662 3.295 7.554 4.542 7.502 6zM13.5 3A1.5 1.5 0 0012 4.5h4.5A1.5 1.5 0 0015 3h-1.5z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M3 9.375C3 8.339 3.84 7.5 4.875 7.5h9.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625V9.375z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
-]
-
-export default function Dashboard() {
-  const [chargers, setChargers] = useState<Charger[]>([])
-  const [stats, setStats] = useState<Stats>({ total: 0, available: 0, charging: 0, sessionsToday: 0 })
+export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>({
+    total: 0, available: 0, charging: 0, offline: 0,
+    totalKwh: null, monthRevenue: null, hasSessions: false
+  })
   const [loading, setLoading] = useState(true)
-  const [lastUpdate, setLastUpdate] = useState<string>('')
-
-  const fetchData = useCallback(async () => {
-    const [{ data: chargerData }, { count: sessionCount }] = await Promise.all([
-      supabase.from('chargers').select('id,name,status,price_per_kwh,latitude,longitude,last_heartbeat').order('created_at'),
-      supabase.from('charging_sessions').select('*', { count: 'exact', head: true })
-        .gte('created_at', new Date().toISOString().slice(0, 10)),
-    ])
-    const list = chargerData ?? []
-    setChargers(list)
-    setStats({
-      total: list.length,
-      available: list.filter(c => c.status === 'Available').length,
-      charging: list.filter(c => c.status === 'Charging').length,
-      sessionsToday: sessionCount ?? 0,
-    })
-    setLastUpdate(new Date().toLocaleTimeString('es-EC'))
-    setLoading(false)
-  }, [])
 
   useEffect(() => {
-    fetchData()
-    const timer = setInterval(fetchData, 30000)
-    return () => clearInterval(timer)
-  }, [fetchData])
+    async function fetchStats() {
+      try {
+        // Charger counts
+        const { data: chargers } = await supabase.from('chargers').select('status')
+        const total = chargers?.length ?? 0
+        const available = chargers?.filter(c => c.status === 'Available').length ?? 0
+        const charging = chargers?.filter(c => c.status === 'Charging').length ?? 0
+        const offline = chargers?.filter(c => c.status === 'Offline' || c.status === 'Unavailable').length ?? 0
+
+        // Try sessions table
+        let totalKwh: number | null = null
+        let monthRevenue: number | null = null
+        let hasSessions = false
+        try {
+          const now = new Date()
+          const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+          const { data: sessions, error } = await supabase
+            .from('charging_sessions')
+            .select('kwh_delivered, amount_charged, started_at')
+            .gte('started_at', firstDay)
+          if (!error && sessions) {
+            hasSessions = true
+            totalKwh = sessions.reduce((a, s) => a + (s.kwh_delivered ?? 0), 0)
+            monthRevenue = sessions.reduce((a, s) => a + (s.amount_charged ?? 0), 0)
+          }
+        } catch (_) {}
+
+        setStats({ total, available, charging, offline, totalKwh, monthRevenue, hasSessions })
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStats()
+  }, [])
+
+  const cards = [
+    {
+      label: 'Total Cargadores', value: loading ? '—' : stats.total, key: 'total' as const,
+      gradient: 'from-blue-600/25 via-blue-600/10 to-blue-600/0',
+      border: 'border-blue-500/25', text: 'text-blue-300', glow: 'shadow-blue-500/10',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+          <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.548-4.26L5.47 16.5a.75.75 0 01-.548-1.263l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Disponibles', value: loading ? '—' : stats.available, key: 'available' as const,
+      gradient: 'from-emerald-600/25 via-emerald-600/10 to-emerald-600/0',
+      border: 'border-emerald-500/25', text: 'text-emerald-300', glow: 'shadow-emerald-500/10',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+          <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      label: 'En Carga', value: loading ? '—' : stats.charging, key: 'charging' as const,
+      gradient: 'from-yellow-600/25 via-yellow-600/10 to-yellow-600/0',
+      border: 'border-yellow-500/25', text: 'text-yellow-300', glow: 'shadow-yellow-500/10',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+          <path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25zM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 116 0h3a.75.75 0 00.75-.75V15z" />
+          <path d="M8.25 19.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0zM15.75 6.75a.75.75 0 00-.75.75v11.25c0 .087.015.17.042.248a3 3 0 015.958.464c.853-.175 1.522-.935 1.464-1.883a18.659 18.659 0 00-3.732-10.104 1.837 1.837 0 00-1.47-.725H15.75z" />
+          <path d="M19.5 19.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Offline', value: loading ? '—' : stats.offline, key: 'offline' as const,
+      gradient: 'from-red-600/25 via-red-600/10 to-red-600/0',
+      border: 'border-red-500/25', text: 'text-red-300', glow: 'shadow-red-500/10',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+          <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {lastUpdate ? `Actualizado: ${lastUpdate}` : 'Cargando...'}
-          </p>
-        </div>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-            <path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm15.408 3.352a.75.75 0 00-.919.53 7.5 7.5 0 01-12.548 3.364l-1.902-1.903h3.183a.75.75 0 000-1.5H2.984a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0015.059-4.035.75.75 0 00-.53-.918z" clipRule="evenodd" />
-          </svg>
-          Actualizar
-        </button>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-400">Estado en tiempo real de la red de carga</p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 mb-6 md:grid-cols-4">
-        {kpiDefs.map(k => (
-          <div
-            key={k.label}
-            className={`relative overflow-hidden bg-gradient-to-br ${k.gradient} border ${k.border} rounded-xl p-4 shadow-lg ${k.glow}`}
-          >
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{k.label}</p>
-            <p className={`text-3xl font-bold mt-1 ${k.text}`}>
-              {loading
-                ? <span className="inline-block w-8 h-8 bg-gray-700/60 rounded animate-pulse" />
-                : stats[k.key]}
-            </p>
-            <span className={`absolute right-3 top-3 opacity-20 ${k.text}`}>{k.icon}</span>
-          </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {cards.map(c => (
+          <StatCard key={c.key} label={c.label} value={c.value}
+            gradient={c.gradient} border={c.border} text={c.text} glow={c.glow} icon={c.icon} />
         ))}
       </div>
 
-      {/* Map */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-gray-400">
-            <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.083 3.964-5.129 3.964-8.827a8.25 8.25 0 00-16.5 0c0 3.698 2.02 6.744 3.964 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-          </svg>
-          Ubicación de Cargadores
-        </h2>
-        <MapComponent
-          chargers={chargers
-            .filter(c => c.latitude != null && c.longitude != null)
-            .map(c => ({ id: c.id, name: c.name, status: c.status ?? 'Unknown', location: null, lat: c.latitude!, lng: c.longitude! }))}
-        />
-      </div>
-
-      {/* Charger Status List */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Estado de Cargadores</h2>
-          <a href="/chargers" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Ver todos →</a>
+      {stats.hasSessions && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <StatCard
+            label="kWh entregados (mes)" value={loading ? '—' : `${(stats.totalKwh ?? 0).toFixed(1)} kWh`}
+            gradient="from-purple-600/25 via-purple-600/10 to-purple-600/0"
+            border="border-purple-500/25" text="text-purple-300" glow="shadow-purple-500/10"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.548-4.26L5.47 16.5a.75.75 0 01-.548-1.263l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Ingresos del mes" value={loading ? '—' : `$${(stats.monthRevenue ?? 0).toFixed(2)}`}
+            gradient="from-teal-600/25 via-teal-600/10 to-teal-600/0"
+            border="border-teal-500/25" text="text-teal-300" glow="shadow-teal-500/10"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M10.464 8.746c.227-.18.497-.311.786-.394v2.795a2.252 2.252 0 01-.786-.393c-.394-.313-.546-.681-.546-1.004 0-.323.152-.691.546-1.004zM12.75 15.662v-2.824c.347.085.664.228.921.421.427.32.579.686.579.991 0 .305-.152.671-.579.991a2.534 2.534 0 01-.921.42z" />
+                <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v.816a3.836 3.836 0 00-1.72.756c-.712.566-1.112 1.35-1.112 2.178 0 .829.4 1.612 1.113 2.178.502.4 1.102.647 1.719.756v2.978a2.536 2.536 0 01-.921-.421l-.879-.66a.75.75 0 00-.9 1.2l.879.66c.533.4 1.169.645 1.821.75V18a.75.75 0 001.5 0v-.81a4.124 4.124 0 001.821-.749c.745-.559 1.179-1.344 1.179-2.191 0-.847-.434-1.632-1.179-2.191a4.122 4.122 0 00-1.821-.75V8.354c.29.082.559.213.786.393l.415.33a.75.75 0 00.933-1.175l-.415-.33a3.836 3.836 0 00-1.719-.755V6z" clipRule="evenodd" />
+              </svg>
+            }
+          />
         </div>
-        {loading ? (
-          <div className="space-y-2">
-            {[1, 2].map(i => <div key={i} className="h-14 bg-gray-800 rounded-lg animate-pulse" />)}
-          </div>
-        ) : chargers.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 mx-auto mb-2 opacity-30">
-              <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.268a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm">No hay cargadores registrados</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {chargers.map(c => (
-              <div key={c.id} className="flex items-center justify-between p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors">
-                <div className="min-w-0">
-                  <p className="font-medium text-white text-sm truncate">{c.name || c.id}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {c.latitude ? `${c.latitude.toFixed(4)}, ${c.longitude?.toFixed(4)}` : 'Sin coordenadas'}
-                    {c.price_per_kwh ? ` · $${c.price_per_kwh}/kWh` : ''}
-                  </p>
-                </div>
-                <StatusBadge status={c.status} />
+      )}
+
+      <div className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">Estado de la red</h2>
+        <div className="space-y-3">
+          {[
+            { label: 'Disponibles', value: stats.available, total: stats.total, color: 'bg-emerald-500' },
+            { label: 'En Carga', value: stats.charging, total: stats.total, color: 'bg-yellow-500' },
+            { label: 'Offline', value: stats.offline, total: stats.total, color: 'bg-red-500' },
+          ].map(item => (
+            <div key={item.label}>
+              <div className="mb-1 flex justify-between text-xs text-gray-400">
+                <span>{item.label}</span>
+                <span>{item.value} / {item.total}</span>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="h-2 rounded-full bg-gray-800">
+                <div
+                  className={`h-2 rounded-full ${item.color} transition-all duration-700`}
+                  style={{ width: item.total > 0 ? `${(item.value / item.total) * 100}%` : '0%' }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -8,6 +8,13 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'EV Charging Admin',
   description: 'CSMS Dashboard',
+  manifest: '/manifest.json',
+  themeColor: '#111827',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'EV Admin',
+  },
 }
 
 export const viewport: Viewport = {

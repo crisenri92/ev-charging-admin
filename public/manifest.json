@@ -1,0 +1,25 @@
+{
+  "name": "EV Charging Admin",
+  "short_name": "EV Admin",
+  "description": "Panel de administración para red de carga de vehículos eléctricos",
+  "theme_color": "#111827",
+  "background_color": "#111827",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

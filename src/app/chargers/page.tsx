@@ -32,6 +32,31 @@ function StatusBadge({ status }: { status: string | null }) {
   }
   const s = status ?? 'Offline'
   const m = map[s] ?? map['Offline']
+  const handleStartCharge = async (chargerId: string) => {
+    setStartingCharge(chargerId)
+    try {
+      const res = await fetch('/api/payment/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chargerId, estimatedKwh: 10, pricePerKwh: 0.15 }),
+      })
+      if (res.status === 503) {
+        toast('Pago DEUNA no configurado aún')
+        return
+      }
+      const data = await res.json()
+      if (data.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank')
+      } else {
+        toast('Error al crear checkout')
+      }
+    } catch {
+      toast('Error de conexión')
+    } finally {
+      setStartingCharge(null)
+    }
+  }
+
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${m.cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${m.dot} ${s === 'Charging' ? 'animate-pulse' : ''}`} />
@@ -186,6 +211,7 @@ export default function ChargersPage() {
   const [editTarget, setEditTarget] = useState<Charger | null>(null)
   const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [startingCharge, setStartingCharge] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [newId, setNewId] = useState('')
   const [adding, setAdding] = useState(false)
@@ -351,7 +377,16 @@ export default function ChargersPage() {
                         <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='w-3 h-3'><path fillRule='evenodd' d='M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.083 3.964-5.129 3.964-8.827a8.25 8.25 0 00-16.5 0c0 3.698 2.02 6.744 3.964 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z' clipRule='evenodd' /></svg>
                         Ubicación
                       </button>
-                      <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
+                      {c.status === 'Available' && (
+                          <button
+                            onClick={() => handleStartCharge(c.id)}
+                            disabled={startingCharge === c.id}
+                            className="text-xs px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-md border border-blue-500/30 transition-colors disabled:opacity-50"
+                          >
+                            {startingCharge === c.id ? '...' : 'Iniciar Carga'}
+                          </button>
+                        )}
+                        <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
                     </div>
                   </td>
                 </tr>
