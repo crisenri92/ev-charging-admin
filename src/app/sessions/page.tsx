@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -38,6 +39,30 @@ function StatusPill({ ended }: { ended: string | null }) {
     : <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300 border border-emerald-500/30">Activa</span>
 }
 
+function SuccessBanner() {
+  const searchParams = useSearchParams()
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setShow(true)
+      const t = setTimeout(() => setShow(false), 8000)
+      return () => clearTimeout(t)
+    }
+  }, [searchParams])
+
+  if (!show) return null
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-emerald-300">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 shrink-0">
+        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+      </svg>
+      <span className="font-medium">¡Pago exitoso! Tu sesión de carga ha sido registrada.</span>
+    </div>
+  )
+}
+
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,6 +88,10 @@ export default function SessionsPage() {
         <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
         <p className="mt-1 text-sm text-gray-400">Historial de sesiones registradas</p>
       </div>
+
+      <Suspense fallback={null}>
+        <SuccessBanner />
+      </Suspense>
 
       {error && (
         <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300">
@@ -142,7 +171,7 @@ CREATE POLICY anon_select_sessions ON charging_sessions
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><p className="text-gray-500">Inicio</p><p className="text-gray-300">{fmtDate(s.started_at)}</p></div>
                 <div><p className="text-gray-500">Duración</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
-                <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.kwh_delivered != null ? `${s.kwh_delivered.toFixed(2)}` : '—'}</p></div>
+                <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.kwh_delivered != null ? s.kwh_delivered.toFixed(2) : '—'}</p></div>
                 <div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.amount_charged != null ? `$${s.amount_charged.toFixed(2)}` : '—'}</p></div>
               </div>
             </div>
