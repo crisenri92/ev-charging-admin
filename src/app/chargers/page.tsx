@@ -246,11 +246,15 @@ export default function ChargersPage() {
               ))
             }
             if (event === 'charger_disconnected') {
-              setChargers(prev => prev.map(c =>
-                c.id === data.id || c.id === data.id?.replace(/_/g, '').toUpperCase()
-                  ? { ...c, status: 'Offline' }
-                  : c
-              ))
+              setChargers(prev => prev.map(c => {
+                if (c.id === data.id || c.id === data.id?.replace(/_/g, '').toUpperCase()) {
+                  if (c.status === 'Available' || c.status === 'Charging') {
+                    toast(`⚠️ Cargador ${data.id ?? c.id} se desconectó`, 'error')
+                  }
+                  return { ...c, status: 'Offline' }
+                }
+                return c
+              }))
             }
           } catch { /* ignore parse errors */ }
         }
