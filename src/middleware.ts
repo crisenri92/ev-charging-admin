@@ -13,4 +13,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-export const config = { matcher: ['/((?!_next|favicon.ico|api).*)'] }
+// Exclude: Next.js internals, static files, PWA assets, and API routes
+export const config = {
+  matcher: ['/((?!_next|favicon.ico|api|manifest\.json|sw\.js|icon-|.*\.png|.*\.svg|.*\.webmanifest).*)'],
+}
