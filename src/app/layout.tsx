@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   title: 'EV Charging Admin',
   description: 'CSMS Dashboard',
   manifest: '/manifest.json',
-  themeColor: '#111827',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -22,11 +21,29 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#111827',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) { console.log('SW registered:', reg.scope); })
+                    .catch(function(err) { console.log('SW error:', err); });
+                });
+              }
+            `,
+          }}
+        />
+      </head>
       <body className={`${inter.className} bg-gray-950 text-white`}>
         <div className="flex min-h-screen">
           <ConditionalSidebar />
@@ -34,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
         </div>
-            <ToastContainer />
+        <ToastContainer />
       </body>
     </html>
   )
