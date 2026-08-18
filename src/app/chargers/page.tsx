@@ -32,31 +32,6 @@ function StatusBadge({ status }: { status: string | null }) {
   }
   const s = status ?? 'Offline'
   const m = map[s] ?? map['Offline']
-  const handleStartCharge = async (chargerId: string) => {
-    setStartingCharge(chargerId)
-    try {
-      const res = await fetch('/api/payment/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chargerId, estimatedKwh: 10, pricePerKwh: 0.15 }),
-      })
-      if (res.status === 503) {
-        toast('Pago DEUNA no configurado aún')
-        return
-      }
-      const data = await res.json()
-      if (data.checkoutUrl) {
-        window.open(data.checkoutUrl, '_blank')
-      } else {
-        toast('Error al crear checkout')
-      }
-    } catch {
-      toast('Error de conexión')
-    } finally {
-      setStartingCharge(null)
-    }
-  }
-
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${m.cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${m.dot} ${s === 'Charging' ? 'animate-pulse' : ''}`} />
@@ -216,6 +191,31 @@ export default function ChargersPage() {
   const [newId, setNewId] = useState('')
   const [adding, setAdding] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
+  const handleStartCharge = async (chargerId: string) => {
+    setStartingCharge(chargerId)
+    try {
+      const res = await fetch('/api/payment/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chargerId, estimatedKwh: 10, pricePerKwh: 0.15 }),
+      })
+      if (res.status === 503) {
+        toast('Pago DEUNA no configurado aún')
+        return
+      }
+      const data = await res.json()
+      if (data.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank')
+      } else {
+        toast('Error al crear checkout')
+      }
+    } catch {
+      toast('Error de conexión')
+    } finally {
+      setStartingCharge(null)
+    }
+  }
+
 
   const fetchChargers = useCallback(async () => {
     const { data } = await supabase.from('chargers').select('*').order('created_at')
