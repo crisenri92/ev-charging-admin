@@ -1,93 +1,70 @@
-/**
- * DEUNA Payment Checkout API Route
- * POST /api/payment/checkout
- *
- * Activa cuando tengas DEUNA_API_KEY configurada en Railway.
- * Body: { chargerId, userId, estimatedKwh, pricePerKwh }
- * Returns: { checkoutUrl, orderId }
- */
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
 
-const DEUNA_API_KEY  = process.env.DEUNA_API_KEY
-const DEUNA_SANDBOX  = process.env.DEUNA_SANDBOX !== 'false'
-const DEUNA_BASE_URL = DEUNA_SANDBOX
-  ? 'https://api.sandbox.deuna.io'
-  : 'https://api.deuna.io'
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-06-30.basil',
+})
 
-export async function POST(req: NextRequest) {
-  if (!DEUNA_API_KEY) {
-    return NextResponse.json(
-      { error: 'DEUNA_API_KEY no configurada. Agrégala como variable de entorno en Railway.' },
-      { status: 503 }
-    )
-  }
-
-  const body = await req.json()
-  const { chargerId, userId, estimatedKwh, pricePerKwh } = body
-
-  if (!chargerId || !estimatedKwh || !pricePerKwh) {
-    return NextResponse.json({ error: 'Faltan campos requeridos: chargerId, estimatedKwh, pricePerKwh' }, { status: 400 })
-  }
-
-  const totalAmount = Math.round(estimatedKwh * pricePerKwh * 100) // centavos
-  const currency    = 'USD'
-  const orderId     = `EV-${chargerId}-${Date.now()}`
-
+export async function POST(request: Request) {
   try {
-    const res = await fetch(`${DEUNA_BASE_URL}/merchants/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': DEUNA_API_KEY,
-      },
-      body: JSON.stringify({
-        order: {
-          order_id:    orderId,
-          currency,
-          total_amount: totalAmount,
-          items: [
-            {
-              id:          chargerId,
-              name:        `Carga EV — ${chargerId}`,
-              description: `${estimatedKwh} kWh @ $${pricePerKwh}/kWh`,
-              quantity:    1,
-              unit_price:  totalAmount,
-              total_price: totalAmount,
-            },
-          ],
-          metadata: {
-            charger_id: chargerId,
-            user_id:    userId ?? null,
-            kwh:        estimatedKwh,
-          },
-        },
-        user: {
-          // DEUNA requiere datos de usuario para crear el checkout
-          // Si tienes el email/teléfono del usuario, pásalo aquí
-          email: body.userEmail ?? 'guest@evcharging.com',
-          phone: body.userPhone ?? '',
-          first_name: body.userName ?? 'Usuario',
-          last_name:  '',
-        },
-        callback_config: {
-          success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/payment/success?order=${orderId}`,
-          failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/payment/failure?order=${orderId}`,
-        },
-      }),
-    })
+    const body = await request.json()
+    const { chargerId, estimatedKwh, pricePerKwh } = body
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[DEUNA] Error creando orden:', err)
-      return NextResponse.json({ error: 'Error al crear la orden en DEUNA', detail: err }, { status: 502 })
+    if (!chargerId || !estimatedKwh || !pricePerKwh) {
+      return NextResponse.json(
+        { error: 'Faltan campos requeridos: chargerId, estimatedKwh, pricePerKwh' },
+        { status: 400 }
+      )
     }
 
-    const data = await res.json()
-    const checkoutUrl = data.order?.redirect_url ?? data.order?.order_url ?? data.checkout_url
+    const totalKwh = parseFloat(estimatedKwh)
+    const pricePerUnit = parseFloat(pricePerKwh)
+    const amountInCents = Math.round(totalKwh * pricePerUnit * 100)
 
-    return NextResponse.json({ checkoutUrl, orderId, amount: totalAmount / 100, currency })
+    if (amountInCents < 50) {
+      return NextResponse.json(
+        { error: 'El monto minimo es $0.50' },
+        { status: 400 }
+      )
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Carga EV - Cargador ' + chargerId,
+              description: totalKwh + ' kWh @ $' + pricePerUnit + '/kWh',
+            },
+            unit_amount: amountInCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        chargerId: String(chargerId),
+        estimatedKwh: String(totalKwh),
+        pricePerKwh: String(pricePerUnit),
+      },
+      success_url: appUrl + '/payment/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: appUrl + '/dashboard',
+    })
+
+    return NextResponse.json({
+      checkoutUrl: session.url,
+      sessionId: session.id,
+      amount: amountInCents / 100,
+    })
   } catch (err) {
-    console.error('[DEUNA] Excepción:', err)
-    return NextResponse.json({ error: 'Error interno al procesar el pago' }, { status: 500 })
+    console.error('[Stripe] Error creando checkout session:', err)
+    return NextResponse.json(
+      { error: 'Error interno al procesar el pago' },
+      { status: 500 }
+    )
   }
 }
