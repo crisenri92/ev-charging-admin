@@ -24,6 +24,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [reason,setReason]=useState("")
   const [amount, setAmount] = useState('' )
   const [operation, setOperation] = useState<'add' | 'subtract' | 'set'>(' add')
   const [toast, setToast] = useState<Toast | null>(null)
@@ -54,6 +55,7 @@ export default function UsersPage() {
     setAmount('' )
     setOperation('add')
     setModalOpen(true)
+    setReason("")
   }
 
   const handleSaveBalance = async () => {
@@ -133,7 +135,7 @@ export default function UsersPage() {
                     )}
                     <td className="px-4 py-3 text-right">
                       {activeTab === 'clients' ? (
-                        <button onClick={() => openModal(user)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors">Editar saldo</button>
+                        <button onClick={() => openModal(user)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors">Gestionar Saldo</button>
                       ) : (
                         <button className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-md transition-colors">Degradar</button>
                       )}
@@ -150,7 +152,7 @@ export default function UsersPage() {
           <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-700">
               <div>
-                <h2 className="font-bold text-lg">Editar saldo</h2>
+                <h2 className="font-bold text-lg">Gestionar Saldo</h2>
                 <p className="text-sm text-gray-400 truncate">{selectedUser.email}</p>
               </div>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white p-1 rounded"><X size={20} /></button>
@@ -180,6 +182,7 @@ export default function UsersPage() {
                 <p className="text-xs text-gray-500 mt-1">Saldo actual: <span className="text-green-400 font-medium">${Number(selectedUser.balance).toFixed(2)}</span></p>
               </div>
             </div>
+              <div className="px-5 pb-3"><label className="text-xs text-gray-400 mb-1 block">Motivo (opcional)</label><input type="text" value={reason} onChange={(e)=>setReason(e.target.value)} className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm" placeholder="Ej: Pago offline..." /></div>
             <div className="flex gap-2 p-5 border-t border-gray-700">
               <button onClick={() => setModalOpen(false)} className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium rounded-lg transition-colors">Cancelar</button>
               <button onClick={handleSaveBalance} disabled={!amount || saving} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">{saving ? 'Guardando...' : 'Confirmar'}</button>
