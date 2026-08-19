@@ -1,118 +1,192 @@
-
 'use client'
-import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { useState, useEffect, useCallback } from 'react'
+import { Users, DollarSign, Shield, X, Check } from 'lucide-react'
 
 interface User {
   id: string
-  email: string | null
-  name: string | null
-  phone: string | null
-  created_at: string | null
-  balance: number | null
+  email: string
+  created_at: string
+  last_sign_in_at: string | null
+  role: string
+  balance: number
+  currency: string
+  user_metadata: any
 }
 
-function Avatar({ name, email }: { name: string | null; email: string | null }) {
-  const initials = (name ?? email ?? '?').slice(0, 2).toUpperCase()
-  const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500']
-  const color = colors[(initials.charCodeAt(0) ?? 0) % colors.length]
-  return (
-    <div className={`w-8 h-8 rounded-full ${color} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
-      {initials}
-    </div>
-  )
+interface Toast {
+  message: string
+  type: 'success' | 'error'
 }
 
 export default function UsersPage() {
+  const [activeTab, setActiveTab] = useState<'clients' | 'admins'>(' clients')
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [amount, setAmount] = useState('' )
+  const [operation, setOperation] = useState<'add' | 'subtract' | 'set'>(' add')
+  const [toast, setToast] = useState<Toast | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const fetchUsers = useCallback(async () => {
-    const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false })
-    setUsers(data ?? [])
-    setLoading(false)
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/users')
+      const data = await res.json()
+      setUsers(data.users || [])
+    } catch {
+      showToast('Error al cargar usuarios', 'error')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
-  const filtered = users.filter(u =>
-    !search || (u.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.name ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+  const openModal = (user: User) => {
+    setSelectedUser(user)
+    setAmount('' )
+    setOperation('add')
+    setModalOpen(true)
+  }
+
+  const handleSaveBalance = async () => {
+    if (!selectedUser || !amount) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/users/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedUser.id, amount: parseFloat(amount), operation })
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      showToast(`Saldo actualizado: $${data.newBalance.toFixed(2)}`, 'success')
+      setModalOpen(false)
+      fetchUsers()
+    } catch (e: any) {
+      showToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const clients = users.filter(u => u.role !== 'admin')
+  const admins = users.filter(u => u.role === 'admin')
+  const displayUsers = activeTab === 'clients' ? clients : admins
+  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-white">Usuarios</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}</p>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.type === 'success' ? <Check size={16} /> : <X size={16} />}
+          {toast.message}
         </div>
-        <div className="relative">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"><path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" /></svg>
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por email o nombre..."
-            className="pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-gray-500 w-64"
-          />
+      )}
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <Users className="text-blue-400" size={28} />
+          <h1 className="text-2xl font-bold">Usuarios</h1>
         </div>
-      </div>
-
-      <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
-        {loading ? (
-          <div className="p-8 space-y-3">
-            {[1,2,3,4].map(i => <div key={i} className="h-14 bg-gray-800 rounded-lg animate-pulse" />)}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 mx-auto mb-3 opacity-20"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>
-            <p className="font-medium text-gray-400 mb-1">{search ? 'Sin resultados' : 'No hay usuarios'}</p>
-            <p className="text-sm">{search ? `No se encontraron usuarios con "${search}"` : 'Los usuarios aparecen aquí cuando se registran'}</p>
-          </div>
-        ) : (
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                {['Usuario', 'Email', 'Teléfono', 'Saldo', 'Registrado'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {filtered.map(u => (
-                <tr key={u.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={u.name} email={u.email} />
-                      <div>
-                        <p className="font-medium text-white text-sm">{u.name ?? <span className="text-gray-500">Sin nombre</span>}</p>
-                        <p className="text-xs text-gray-500 mt-0.5 font-mono">{u.id.slice(0, 8)}...</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-sm text-gray-300">{u.email ?? <span className="text-gray-600">&mdash;</span>}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-400">{u.phone ?? <span className="text-gray-600">&mdash;</span>}</td>
-                  <td className="px-4 py-3.5">
-                    {u.balance != null ? (
-                      <span className={`text-sm font-medium ${u.balance > 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
-                        ${u.balance.toFixed(2)}
-                      </span>
-                    ) : <span className="text-gray-600 text-sm">&mdash;</span>}
-                  </td>
-                  <td className="px-4 py-3.5 text-xs text-gray-500">
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString('es-EC', { year: 'numeric', month: 'short', day: 'numeric' }) : '&mdash;'}
-                  </td>
+        <div className="flex gap-1 mb-6 bg-gray-800 p-1 rounded-lg w-fit">
+          <button onClick={() => setActiveTab('clients')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            <DollarSign size={16} /> Clientes ({clients.length})
+          </button>
+          <button onClick={() => setActiveTab('admins')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'admins' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            <Shield size={16} /> Administradores ({admins.length})
+          </button>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-gray-400">Cargando usuarios...</div>
+          ) : displayUsers.length === 0 ? (
+            <div className="flex items-center justify-center py-16 text-gray-400">No hay usuarios en esta categoria</div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700 bg-gray-900/50">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Email</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Registro</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ultimo login</th>
+                  {activeTab === 'clients' && <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Saldo</th>}
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {displayUsers.map(user => (
+                  <tr key={user.id} className="hover:bg-gray-700/50 transition-colors">
+                    <td className="px-4 py-3 text-sm">{user.email}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(user.created_at)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(user.last_sign_in_at)}</td>
+                    {activeTab === 'clients' && (
+                      <td className="px-4 py-3 text-sm">
+                        <span className="font-semibold text-green-400">${Number(user.balance).toFixed(2)}</span>
+                        <span className="text-gray-500 ml-1 text-xs">{user.currency}</span>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-right">
+                      {activeTab === 'clients' ? (
+                        <button onClick={() => openModal(user)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors">Editar saldo</button>
+                      ) : (
+                        <button className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-md transition-colors">Degradar</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
+      {modalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-gray-700">
+              <div>
+                <h2 className="font-bold text-lg">Editar saldo</h2>
+                <p className="text-sm text-gray-400 truncate">{selectedUser.email}</p>
+              </div>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white p-1 rounded"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex gap-2 mb-2">
+                {(['add', 'subtract', 'set'] as const).map(op => (
+                  <button key={op} onClick={() => setOperation(op)} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${operation === op ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}>
+                    {op === 'add' ? 'Agregar' : op === 'subtract' ? 'Descontar' : 'Establecer'}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-2">Montos rapidos:</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[5, 10, 20, 50].map(val => (
+                    <button key={val} onClick={() => setAmount(String(val))} className={`py-2 text-sm font-semibold rounded-lg border transition-colors ${amount === String(val) ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-600 bg-gray-700 hover:bg-gray-600 text-gray-200'}`}>${val}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Monto personalizado</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                  <input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" placeholder="0.00" />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Saldo actual: <span className="text-green-400 font-medium">${Number(selectedUser.balance).toFixed(2)}</span></p>
+              </div>
+            </div>
+            <div className="flex gap-2 p-5 border-t border-gray-700">
+              <button onClick={() => setModalOpen(false)} className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium rounded-lg transition-colors">Cancelar</button>
+              <button onClick={handleSaveBalance} disabled={!amount || saving} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">{saving ? 'Guardando...' : 'Confirmar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
