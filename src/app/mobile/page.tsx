@@ -34,10 +34,10 @@ export default function MobilePage() {
   async function startCharge(chargerId) {
     setLoadingCharger(chargerId)
     try {
-      const res = await fetch('/api/payment/checkout', {
+      const res = await fetch('/api/charging/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chargerId, estimatedKwh: 10, pricePerKwh: 0.15 }),
+        body: JSON.stringify({ chargerId }),
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url

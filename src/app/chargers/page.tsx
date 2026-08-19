@@ -187,6 +187,7 @@ export default function ChargersPage() {
   const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [startingCharge, setStartingCharge] = useState<string | null>(null)
+  const [insufficientBalance, setInsufficientBalance] = useState<number | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [newId, setNewId] = useState('')
   const [adding, setAdding] = useState(false)
@@ -194,21 +195,21 @@ export default function ChargersPage() {
   const handleStartCharge = async (chargerId: string) => {
     setStartingCharge(chargerId)
     try {
-      const res = await fetch('/api/payment/checkout', {
+      const res = await fetch('/api/charging/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chargerId, estimatedKwh: 10, pricePerKwh: 0.15 }),
+        body: JSON.stringify({ chargerId })
       })
-      if (res.status === 503) {
-        toast('Pago DEUNA no configurado aún')
+      const data = await res.json()
+      if (res.status === 402) {
+        setInsufficientBalance(data.balance ?? 0)
         return
       }
-      const data = await res.json()
-      if (data.checkoutUrl) {
-        window.open(data.checkoutUrl, '_blank')
-      } else {
-        toast('Error al crear checkout')
+      if (!res.ok) {
+        toast(data.error || 'Error al iniciar carga')
+        return
       }
+      toast(`Carga iniciada! Saldo: $${data.balance?.toFixed(2)}`)
     } catch {
       toast('Error de conexión')
     } finally {
@@ -433,6 +434,19 @@ export default function ChargersPage() {
         </div>
       )}
 
+
+      {insufficientBalance !== null && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-2xl p-6 mx-4 max-w-sm w-full border border-gray-700">
+            <h3 className="text-lg font-bold text-white mb-2">Saldo insuficiente</h3>
+            <p className="text-gray-400 mb-4">Tu saldo actual es ${insufficientBalance?.toFixed(2)}. Recarga para continuar.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setInsufficientBalance(null)} className="flex-1 py-2 px-4 rounded-lg border border-gray-600 text-gray-300">Cancelar</button>
+              <a href="/wallet" className="flex-1 py-2 px-4 rounded-lg bg-green-600 text-white text-center font-medium">Recargar saldo</a>
+            </div>
+          </div>
+        </div>
+      )}
       {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
       {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
     </div>
