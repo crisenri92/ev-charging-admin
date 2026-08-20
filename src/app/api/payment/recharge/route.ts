@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Recarga de saldo EV - $' + amount }, unit_amount: Math.round(amount * 100) }, quantity: 1 }],
       mode: 'payment',
+      managed_payments: { enabled: false } as any,
       metadata: { type: 'balance_recharge', amount: String(amount), userId: user.id },
       success_url: 'https://ev-charging-admin-production.up.railway.app/wallet?recharge=success',
       cancel_url: 'https://ev-charging-admin-production.up.railway.app/wallet',
