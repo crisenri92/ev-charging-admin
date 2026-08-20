@@ -11,13 +11,15 @@ export async function POST(req: NextRequest) {
     if (!amount || amount < 1) return NextResponse.json({ error: 'Monto invalido' }, { status: 400 })
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const cookieStore = cookies()
-    const token = cookieStore.get('sb-access-token')?.value
+    const token =
+      req.headers.get('authorization')?.replace('Bearer ', '').trim() ||
+      cookieStore.get('sb-access-token')?.value
     if (!token) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     const { data: { user } } = await supabase.auth.getUser(token)
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Recarga de saldo EV - $' + amount }, unit_amount: Math.round(amount * 100) }, quantity: 1 }],
+      line_items: [{ price_data: { currency: 'usd', product_data: { name: `Recarga de saldo EV - $${amount}` }, unit_amount: Math.round(amount * 100) }, quantity: 1 }],
       mode: 'payment',
       managed_payments: { enabled: false } as any,
       metadata: { type: 'balance_recharge', amount: String(amount), userId: user.id },
