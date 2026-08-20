@@ -61,12 +61,12 @@ export default function DashboardPage() {
           const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
           const { data: sessions, error } = await supabase
             .from('charging_sessions')
-            .select('kwh_delivered, amount_charged, started_at')
+            .select('energy_kwh, cost, started_at')
             .gte('started_at', firstDay)
           if (!error && sessions) {
             hasSessions = true
-            totalKwh = sessions.reduce((a, s) => a + (s.kwh_delivered ?? 0), 0)
-            monthRevenue = sessions.reduce((a, s) => a + (s.amount_charged ?? 0), 0)
+            totalKwh = sessions.reduce((a, s) => a + (s.energy_kwh ?? 0), 0)
+            monthRevenue = sessions.reduce((a, s) => a + (s.cost ?? 0), 0)
           }
         } catch (_) {}
 
