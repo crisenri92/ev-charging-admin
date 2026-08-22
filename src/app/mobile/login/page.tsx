@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,6 +56,10 @@ export default function MobileLoginPage() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          ¿No tienes cuenta?{' '}
+          <Link href="/mobile/register" className="text-green-400 hover:underline">Crear cuenta</Link>
+        </p>
       </div>
     </div>
   )
