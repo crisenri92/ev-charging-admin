@@ -12,15 +12,16 @@ const ADMIN_TABS = [
 const MOBILE_TABS = [
   { href: '/mobile', label: 'Inicio', icon: '🏠' },
   { href: '/wallet', label: 'Wallet', icon: '💳' },
+  { href: '/mobile/account', label: 'Cuenta', icon: '👤' },
 ]
 
+const HIDE_NAV_PATHS = ['/login', '/mobile/login', '/mobile/register', '/mobile/forgot-password', '/mobile/reset-password']
 const MOBILE_PATHS = ['/mobile', '/wallet']
 
 export default function MobileBottomNav() {
   const pathname = usePathname()
 
-  // Hide on login pages and full desktop
-  if (pathname === '/login' || pathname === '/mobile/login') return null
+  if (HIDE_NAV_PATHS.includes(pathname)) return null
 
   const isMobileRoute = MOBILE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
   const tabs = isMobileRoute ? MOBILE_TABS : ADMIN_TABS
