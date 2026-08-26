@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Users, DollarSign, Shield, X, Check } from 'lucide-react'
 
 interface User {
   id: string
@@ -10,183 +9,261 @@ interface User {
   role: string
   balance: number
   currency: string
-  user_metadata: any
 }
 
-interface Toast {
-  message: string
-  type: 'success' | 'error'
-}
+type ToastType = { message: string; type: 'success' | 'error' }
 
 export default function UsersPage() {
-  const [activeTab, setActiveTab] = useState<'clients' | 'admins'>(' clients')
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [reason,setReason]=useState("")
-  const [amount, setAmount] = useState('' )
-  const [operation, setOperation] = useState<'add' | 'subtract' | 'set'>(' add')
-  const [toast, setToast] = useState<Toast | null>(null)
+  const [toast, setToast] = useState<ToastType | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Balance modal
+  const [balanceUser, setBalanceUser] = useState<User | null>(null)
+  const [amount, setAmount] = useState('')
+  const [operation, setOperation] = useState<'add' | 'subtract' | 'set'>('add')
+
+  // Create user modal
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newRole, setNewRole] = useState<'client' | 'admin'>('client')
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
+    setTimeout(() => setToast(null), 3500)
   }
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
-    try {
-      const res = await fetch('/api/admin/users')
-      const data = await res.json()
-      setUsers(data.users || [])
-    } catch {
-      showToast('Error al cargar usuarios', 'error')
-    } finally {
-      setLoading(false)
-    }
+    const res = await fetch('/api/admin/users')
+    const data = await res.json()
+    setUsers(data.users || [])
+    setLoading(false)
   }, [])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
-  const openModal = (user: User) => {
-    setSelectedUser(user)
-    setAmount('' )
-    setOperation('add')
-    setModalOpen(true)
-    setReason("")
+  const handleSaveBalance = async () => {
+    if (!balanceUser || !amount) return
+    setSaving(true)
+    const res = await fetch('/api/admin/users/balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: balanceUser.id, amount: parseFloat(amount), operation }),
+    })
+    const data = await res.json()
+    if (data.error) { showToast(data.error, 'error') } else {
+      showToast(`Saldo actualizado: $${data.newBalance?.toFixed(2)}`, 'success')
+      setBalanceUser(null)
+      fetchUsers()
+    }
+    setSaving(false)
   }
 
-  const handleSaveBalance = async () => {
-    if (!selectedUser || !amount) return
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
     setSaving(true)
-    try {
-      const res = await fetch('/api/admin/users/balance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedUser.id, amount: parseFloat(amount), operation })
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      showToast(`Saldo actualizado: $${data.newBalance.toFixed(2)}`, 'success')
-      setModalOpen(false)
+    const res = await fetch('/api/admin/users/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newEmail, password: newPassword, name: newName, role: newRole }),
+    })
+    const data = await res.json()
+    if (data.error) { showToast(data.error, 'error') } else {
+      showToast(`Usuario ${newEmail} creado`, 'success')
+      setCreateOpen(false)
+      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('client')
       fetchUsers()
-    } catch (e: any) {
-      showToast(e.message, 'error')
-    } finally {
-      setSaving(false)
     }
+    setSaving(false)
+  }
+
+  const handleResetPassword = async (email: string) => {
+    const res = await fetch('/api/admin/users/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    if (data.error) showToast(data.error, 'error')
+    else showToast(`Link de recuperación enviado a ${email}`, 'success')
+  }
+
+  const handleDeleteUser = async (user: User) => {
+    if (!confirm(`¿Eliminar usuario ${user.email}? Esta acción no se puede deshacer.`)) return
+    const res = await fetch('/api/admin/users/delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id }),
+    })
+    const data = await res.json()
+    if (data.error) showToast(data.error, 'error')
+    else { showToast('Usuario eliminado', 'success'); fetchUsers() }
   }
 
   const clients = users.filter(u => u.role !== 'admin')
   const admins = users.filter(u => u.role === 'admin')
-  const displayUsers = activeTab === 'clients' ? clients : admins
-  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="p-6 space-y-6">
+      {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
-          {toast.type === 'success' ? <Check size={16} /> : <X size={16} />}
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
           {toast.message}
         </div>
       )}
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <Users className="text-blue-400" size={28} />
-          <h1 className="text-2xl font-bold">Usuarios</h1>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Usuarios</h1>
+          <p className="text-gray-400 text-sm mt-1">{clients.length} clientes · {admins.length} admins</p>
         </div>
-        <div className="flex gap-1 mb-6 bg-gray-800 p-1 rounded-lg w-fit">
-          <button onClick={() => setActiveTab('clients')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
-            <DollarSign size={16} /> Clientes ({clients.length})
-          </button>
-          <button onClick={() => setActiveTab('admins')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'admins' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
-            <Shield size={16} /> Administradores ({admins.length})
-          </button>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-gray-400">Cargando usuarios...</div>
-          ) : displayUsers.length === 0 ? (
-            <div className="flex items-center justify-center py-16 text-gray-400">No hay usuarios en esta categoria</div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700 bg-gray-900/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Registro</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ultimo login</th>
-                  {activeTab === 'clients' && <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Saldo</th>}
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {displayUsers.map(user => (
-                  <tr key={user.id} className="hover:bg-gray-700/50 transition-colors">
-                    <td className="px-4 py-3 text-sm">{user.email}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(user.created_at)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(user.last_sign_in_at)}</td>
-                    {activeTab === 'clients' && (
-                      <td className="px-4 py-3 text-sm">
-                        <span className="font-semibold text-green-400">${Number(user.balance).toFixed(2)}</span>
-                        <span className="text-gray-500 ml-1 text-xs">{user.currency}</span>
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-right">
-                      {activeTab === 'clients' ? (
-                        <button onClick={() => openModal(user)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors">Gestionar Saldo</button>
-                      ) : (
-                        <button className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-md transition-colors">Degradar</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <button onClick={() => setCreateOpen(true)}
+          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition-colors text-sm">
+          + Crear usuario
+        </button>
       </div>
-      {modalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-gray-700">
-              <div>
-                <h2 className="font-bold text-lg">Gestionar Saldo</h2>
-                <p className="text-sm text-gray-400 truncate">{selectedUser.email}</p>
-              </div>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white p-1 rounded"><X size={20} /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex gap-2 mb-2">
-                {(['add', 'subtract', 'set'] as const).map(op => (
-                  <button key={op} onClick={() => setOperation(op)} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${operation === op ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}>
-                    {op === 'add' ? 'Agregar' : op === 'subtract' ? 'Descontar' : 'Establecer'}
-                  </button>
-                ))}
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-2">Montos rapidos:</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {[5, 10, 20, 50].map(val => (
-                    <button key={val} onClick={() => setAmount(String(val))} className={`py-2 text-sm font-semibold rounded-lg border transition-colors ${amount === String(val) ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-600 bg-gray-700 hover:bg-gray-600 text-gray-200'}`}>${val}</button>
+
+      {loading ? (
+        <div className="text-center py-20 text-gray-400">Cargando usuarios...</div>
+      ) : (
+        <>
+          {/* Clients table */}
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-3">Clientes</h2>
+            <div className="bg-gray-900 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800 text-gray-400 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Email</th>
+                    <th className="px-4 py-3 text-left">Saldo</th>
+                    <th className="px-4 py-3 text-left">Registro</th>
+                    <th className="px-4 py-3 text-left">Último acceso</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {clients.map(user => (
+                    <tr key={user.id} className="hover:bg-gray-800/50">
+                      <td className="px-4 py-3 text-white">{user.email}</td>
+                      <td className="px-4 py-3 text-green-400 font-mono">${user.balance.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-gray-400">{new Date(user.created_at).toLocaleDateString('es-EC')}</td>
+                      <td className="px-4 py-3 text-gray-400">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString('es-EC') : '—'}</td>
+                      <td className="px-4 py-3 text-right space-x-2">
+                        <button onClick={() => { setBalanceUser(user); setAmount(''); setOperation('add') }}
+                          className="text-xs px-2 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded">
+                          Saldo
+                        </button>
+                        <button onClick={() => handleResetPassword(user.email!)}
+                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded">
+                          Reset pwd
+                        </button>
+                        <button onClick={() => handleDeleteUser(user)}
+                          className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 text-white rounded">
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Monto personalizado</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full pl-7 pr-3 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" placeholder="0.00" />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Saldo actual: <span className="text-green-400 font-medium">${Number(selectedUser.balance).toFixed(2)}</span></p>
-              </div>
+                  {clients.length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No hay clientes</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-              <div className="px-5 pb-3"><label className="text-xs text-gray-400 mb-1 block">Motivo (opcional)</label><input type="text" value={reason} onChange={(e)=>setReason(e.target.value)} className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm" placeholder="Ej: Pago offline..." /></div>
-            <div className="flex gap-2 p-5 border-t border-gray-700">
-              <button onClick={() => setModalOpen(false)} className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium rounded-lg transition-colors">Cancelar</button>
-              <button onClick={handleSaveBalance} disabled={!amount || saving} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-lg transition-colors">{saving ? 'Guardando...' : 'Confirmar'}</button>
+          </div>
+
+          {/* Admins table */}
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-3">Administradores</h2>
+            <div className="bg-gray-900 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800 text-gray-400 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Email</th>
+                    <th className="px-4 py-3 text-left">Registro</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {admins.map(user => (
+                    <tr key={user.id} className="hover:bg-gray-800/50">
+                      <td className="px-4 py-3 text-white">{user.email}</td>
+                      <td className="px-4 py-3 text-gray-400">{new Date(user.created_at).toLocaleDateString('es-EC')}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => handleResetPassword(user.email!)}
+                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded">
+                          Reset pwd
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Balance modal */}
+      {balanceUser && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-white font-bold text-lg mb-1">Gestionar saldo</h3>
+            <p className="text-gray-400 text-sm mb-4">{balanceUser.email} · Saldo actual: <span className="text-green-400">${balanceUser.balance.toFixed(2)}</span></p>
+            <div className="space-y-3">
+              <select value={operation} onChange={e => setOperation(e.target.value as any)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm">
+                <option value="add">Agregar</option>
+                <option value="subtract">Descontar</option>
+                <option value="set">Establecer</option>
+              </select>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                placeholder="Monto en USD" />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setBalanceUser(null)} className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">Cancelar</button>
+              <button onClick={handleSaveBalance} disabled={saving} className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create user modal */}
+      {createOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-white font-bold text-lg mb-4">Crear nuevo usuario</h3>
+            <form onSubmit={handleCreateUser} className="space-y-3">
+              <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500"
+                placeholder="Nombre completo (opcional)" />
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500"
+                placeholder="Email *" />
+              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500"
+                placeholder="Contraseña (mín. 8 caracteres) *" />
+              <select value={newRole} onChange={e => setNewRole(e.target.value as any)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm">
+                <option value="client">Cliente (acceso app móvil)</option>
+                <option value="admin">Administrador (acceso dashboard)</option>
+              </select>
+              <p className="text-xs text-gray-500">El usuario podrá iniciar sesión inmediatamente sin verificar email.</p>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setCreateOpen(false)} className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">Cancelar</button>
+                <button type="submit" disabled={saving} className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                  {saving ? 'Creando...' : 'Crear usuario'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
