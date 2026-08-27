@@ -1,6 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { createClient } from '@supabase/supabase-js'
+
+const ChargerMap = dynamic(() => import('@/components/ChargerMap'), { ssr: false })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +44,7 @@ export default function DashboardPage() {
     totalKwh: null, monthRevenue: null, hasSessions: false
   })
   const [loading, setLoading] = useState(true)
+  const [mapChargers, setMapChargers] = useState<any[]>([])
 
   useEffect(() => {
     async function fetchStats() {
@@ -76,6 +80,15 @@ export default function DashboardPage() {
       }
     }
     fetchStats()
+
+    supabase.from('chargers').select('id, name, status, latitude, longitude, location').then(({ data }) => {
+      if (data) {
+        setMapChargers(data.filter((c: any) => c.latitude && c.longitude).map((c: any) => ({
+          id: c.id, name: c.name, status: c.status ?? 'Offline',
+          location: c.location, lat: c.latitude, lng: c.longitude,
+        })))
+      }
+    })
   }, [])
 
   const cards = [
@@ -160,6 +173,13 @@ export default function DashboardPage() {
               </svg>
             }
           />
+        </div>
+      )}
+
+      {mapChargers.length > 0 && (
+        <div className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">Mapa de cargadores en vivo</h2>
+          <ChargerMap chargers={mapChargers} />
         </div>
       )}
 
