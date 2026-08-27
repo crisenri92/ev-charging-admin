@@ -81,11 +81,11 @@ export default function DashboardPage() {
     }
     fetchStats()
 
-    supabase.from('chargers').select('id, name, status, latitude, longitude, location').then(({ data }) => {
+    supabase.from('chargers').select('id, name, status, latitude, longitude').then(({ data }) => {
       if (data) {
         setMapChargers(data.filter((c: any) => c.latitude && c.longitude).map((c: any) => ({
           id: c.id, name: c.name, status: c.status ?? 'Offline',
-          location: c.location, lat: c.latitude, lng: c.longitude,
+          lat: c.latitude, lng: c.longitude,
         })))
       }
     })

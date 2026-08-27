@@ -5,7 +5,7 @@ interface ChargerLocation {
   id: string
   name: string | null
   status: string
-  location: string | null
+  location?: string | null
   lat: number
   lng: number
 }
