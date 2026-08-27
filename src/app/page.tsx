@@ -79,16 +79,27 @@ export default function DashboardPage() {
         setLoading(false)
       }
     }
-    fetchStats()
-
-    supabase.from('chargers').select('id, name, status, latitude, longitude').then(({ data }) => {
+    // Sync OCPP status to Supabase, then fetch stats
+    const fetchMapChargers = async () => {
+      const { data } = await supabase.from('chargers').select('id, name, status, latitude, longitude')
       if (data) {
         setMapChargers(data.filter((c: any) => c.latitude && c.longitude).map((c: any) => ({
           id: c.id, name: c.name, status: c.status ?? 'Offline',
           lat: c.latitude, lng: c.longitude,
         })))
       }
-    })
+    }
+
+    const syncAndFetch = async () => {
+      await fetch('/api/admin/sync-chargers').catch(() => {})
+      await Promise.all([fetchStats(), fetchMapChargers()])
+    }
+    syncAndFetch()
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(syncAndFetch, 30000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cards = [
