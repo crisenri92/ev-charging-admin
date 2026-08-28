@@ -2,63 +2,69 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const PRICE_PER_KWH = 0.15
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, energyKwh } = await req.json()
+    const body = await req.json()
+    // OCPP server sends: { chargerId, sessionId, meterStart, meterStop, reason }
+    const { chargerId, sessionId, meterStart, meterStop, reason } = body
 
-    // Look up session without FK join
-    const { data: session } = await supabase
-      .from('charging_sessions')
+    // Find active session - by OCPP sessionId or charger_id
+    let sessionQuery = supabase.from('charging_sessions')
       .select('*')
-      .eq('id', sessionId)
-      .single()
+      .eq('status', 'active')
 
-    if (!session) return NextResponse.json({ error: 'Sesion no encontrada' }, { status: 404 })
+    if (sessionId) {
+      sessionQuery = sessionQuery.eq('id', sessionId)
+    } else if (chargerId) {
+      const normalizedId = (chargerId as string).replace(/_/g, '')
+      sessionQuery = sessionQuery.eq('charger_id', normalizedId).order('started_at', { ascending: false }).limit(1)
+    }
 
-    // Get price from charger separately
-    const { data: charger } = await supabase
-      .from('chargers')
-      .select('price_per_kwh')
-      .eq('id', session.charger_id)
-      .single()
+    const { data: sessions } = await sessionQuery
+    if (!sessions || sessions.length === 0) {
+      return NextResponse.json({ message: 'No active session found' }, { status: 200 })
+    }
 
-    const pricePerKwh = charger?.price_per_kwh || 0.15
-    const cost = parseFloat((energyKwh * pricePerKwh).toFixed(2))
-    const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000)
+    const session = sessions[0]
+    const energyKwh = meterStop && meterStart ? (meterStop - meterStart) / 1000 : 0
+    const pricePerKwh = PRICE_PER_KWH
+    const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
+    const now = new Date().toISOString()
 
-    const { data: balanceRow } = await supabase
-      .from('user_balances')
-      .select('balance')
-      .eq('user_id', session.user_id)
-      .single()
-
-    const balanceBefore = balanceRow?.balance || 0
-    const balanceAfter = parseFloat(Math.max(0, balanceBefore - cost).toFixed(2))
-
-    await supabase.from('user_balances')
-      .update({ balance: balanceAfter, updated_at: new Date().toISOString() })
-      .eq('user_id', session.user_id)
-
-    await supabase.from('balance_transactions').insert({
-      user_id: session.user_id,
-      amount: -cost,
-      type: 'charge_deduction',
-      description: `Sesion de carga - ${energyKwh.toFixed(2)} kWh`,
-      charging_session_id: sessionId,
-      balance_before: balanceBefore,
-      balance_after: balanceAfter,
-    })
-
+    // Mark session as completed
     await supabase.from('charging_sessions').update({
-      ended_at: new Date().toISOString(),
+      status: 'completed',
+      ended_at: now,
       energy_kwh: energyKwh,
       cost,
-      duration_seconds: durationSeconds,
-      status: 'completed',
-    }).eq('id', sessionId)
+      stop_reason: reason || 'Remote',
+    }).eq('id', session.id)
 
-    return NextResponse.json({ cost, balanceAfter, energyKwh })
+    // Deduct from balance
+    if (cost > 0) {
+      const { data: balanceRow } = await supabase
+        .from('user_balances')
+        .select('balance')
+        .eq('user_id', session.user_id)
+        .single()
+
+      const currentBalance = balanceRow?.balance || 0
+      const newBalance = Math.max(0, currentBalance - cost)
+
+      await supabase.from('user_balances').update({ balance: newBalance }).eq('user_id', session.user_id)
+      await supabase.from('balance_transactions').insert({
+        user_id: session.user_id,
+        amount: -cost,
+        type: 'charge',
+        description: `Sesión de carga - ${session.charger_name || session.charger_id} - ${energyKwh.toFixed(3)} kWh`,
+        balance_after: newBalance,
+        reference_id: session.id,
+      })
+    }
+
+    return NextResponse.json({ ok: true, sessionId: session.id, cost, energyKwh })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

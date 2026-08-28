@@ -30,6 +30,7 @@ const navItems = [
   { href: '/chargers', label: 'Cargadores', Icon: PlugIcon },
   { href: '/sessions', label: 'Sesiones', Icon: ClipboardIcon },
   { href: '/users', label: 'Usuarios', Icon: UserIcon },
+  { href: '/audit', label: 'Auditoría', Icon: ClipboardIcon },
 ]
 
 export default function Sidebar() {

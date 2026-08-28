@@ -85,8 +85,16 @@ export default function SessionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
-        <p className="mt-1 text-sm text-gray-400">Historial de sesiones registradas</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
+            <p className="mt-1 text-sm text-gray-400">Historial de sesiones registradas</p>
+          </div>
+          <div className="flex gap-2">
+            <a href="/api/admin/export/sessions" className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</a>
+            <a href="/api/admin/export/payments" className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</a>
+          </div>
+        </div>
       </div>
 
       <Suspense fallback={null}>

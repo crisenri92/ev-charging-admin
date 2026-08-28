@@ -12,6 +12,7 @@ const ADMIN_TABS = [
 const MOBILE_TABS = [
   { href: '/mobile', label: 'Inicio', icon: '🏠' },
   { href: '/wallet', label: 'Wallet', icon: '💳' },
+  { href: '/mobile/historial', label: 'Historial', icon: '📋' },
   { href: '/mobile/account', label: 'Cuenta', icon: '👤' },
 ]
 
