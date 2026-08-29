@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useCallback } from 'react'
+import { MobileToast } from '@/components/MobileToast'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -64,6 +65,7 @@ function MobileContent() {
   const [loadingCharger, setLoadingCharger] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [qrConfirm, setQrConfirm] = useState<string | null>(null) // charger id from QR
+  const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -101,8 +103,8 @@ function MobileContent() {
         body: JSON.stringify({ chargerId }),
       })
       const data = await res.json()
-      if (res.status === 402) { router.push('/wallet'); return }
-      if (!res.ok) { alert(translateError(data.error) || 'Error al iniciar carga'); return }
+      if (res.status === 402) { setToast({ msg: 'Saldo insuficiente. Recarga tu wallet.', type: 'error' }); router.push('/wallet'); return }
+      if (!res.ok) { setToast({ msg: translateError(data.error) || 'Error al iniciar carga', type: 'error' }); return }
 
       setReceipt({
         chargerName: data.chargerName || chargerId,
@@ -111,7 +113,7 @@ function MobileContent() {
         startedAt: new Date().toISOString(),
       })
       fetchChargers()
-    } catch { alert('Error de conexión. Intenta de nuevo.') }
+    } catch { setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' }) }
     finally { setLoadingCharger(null) }
   }
 
@@ -136,6 +138,7 @@ function MobileContent() {
 
   return (
     <div className="min-h-screen text-white pb-20 px-4 pt-6" style={{ background: '#111827' }}>
+      {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
       {/* QR confirm modal */}
       {qrConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">

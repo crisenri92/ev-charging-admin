@@ -13,8 +13,8 @@ interface Session {
   charger_id: string | null
   started_at: string | null
   ended_at: string | null
-  kwh_delivered: number | null
-  amount_charged: number | null
+  energy_kwh: number | null
+  cost: number | null
   user_id: string | null
   transaction_id: string | null
 }
@@ -157,8 +157,8 @@ CREATE POLICY anon_select_sessions ON charging_sessions
                   <td className="px-4 py-3 font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-300">{fmtDate(s.started_at)}</td>
                   <td className="px-4 py-3 text-gray-300">{duration(s.started_at, s.ended_at)}</td>
-                  <td className="px-4 py-3 text-gray-300">{s.kwh_delivered != null ? `${s.kwh_delivered.toFixed(2)} kWh` : '—'}</td>
-                  <td className="px-4 py-3 text-emerald-300">{s.amount_charged != null ? `$${s.amount_charged.toFixed(2)}` : '—'}</td>
+                  <td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : '—'}</td>
+                  <td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
                   <td className="px-4 py-3"><StatusPill ended={s.ended_at} /></td>
                 </tr>
               ))}
@@ -179,8 +179,8 @@ CREATE POLICY anon_select_sessions ON charging_sessions
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><p className="text-gray-500">Inicio</p><p className="text-gray-300">{fmtDate(s.started_at)}</p></div>
                 <div><p className="text-gray-500">Duración</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
-                <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.kwh_delivered != null ? s.kwh_delivered.toFixed(2) : '—'}</p></div>
-                <div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.amount_charged != null ? `$${s.amount_charged.toFixed(2)}` : '—'}</p></div>
+                <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</p></div>
+                <div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</p></div>
               </div>
             </div>
           ))}

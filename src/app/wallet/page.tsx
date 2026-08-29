@@ -1,4 +1,5 @@
 'use client'
+import { MobileToast } from '@/components/MobileToast'
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -64,7 +65,7 @@ function WalletContent() {
         body: JSON.stringify({ amount }),
       })
       const { checkoutUrl, error } = await res.json()
-      if (error) { alert(error); return }
+      if (error) { setToast({ msg: error, type: 'error' }); return }
       window.location.href = checkoutUrl
     } catch { alert('Error al procesar la recarga') } finally { setRecharging(false) }
   }
@@ -72,6 +73,7 @@ function WalletContent() {
   const fmt = (d: string) => new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   return (
+    <>{toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 pb-20 md:pb-8">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
