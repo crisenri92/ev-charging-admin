@@ -1,32 +1,39 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 export default function AccountPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [loggingOut, setLoggingOut] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+  const { permission, subscribed, subscribe } = usePushNotifications()
+  const [subscribing, setSubscribing] = useState(false)
+  const [subResult, setSubResult] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/mobile/login'); return }
+      if (!session) { router.push('/mobile/login'); return }
       setUser(session.user)
       setLoading(false)
     })
   }, [router])
 
-  const handleLogout = async () => {
-    setLoggingOut(true)
+  async function handleSignOut() {
+    setSigningOut(true)
     await supabase.auth.signOut()
-    router.replace('/mobile/login')
+    router.push('/mobile/login')
+  }
+
+  async function handleSubscribe() {
+    setSubscribing(true)
+    const ok = await subscribe()
+    setSubResult(ok ? '✅ Notificaciones activadas' : '❌ No se pudo activar. Verifica los permisos del navegador.')
+    setSubscribing(false)
   }
 
   if (loading) return (
@@ -35,42 +42,65 @@ export default function AccountPage() {
     </div>
   )
 
-  const createdAt = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString('es-EC', { year: 'numeric', month: 'long', day: 'numeric' })
-    : '—'
-  const initials = (user?.email || '?')[0].toUpperCase()
+  const initials = (user?.user_metadata?.full_name || user?.email || '?').slice(0, 2).toUpperCase()
+  const memberSince = user?.created_at ? new Date(user.created_at).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }) : ''
 
   return (
-    <div className="min-h-screen pb-20" style={{ background: '#111827' }}>
-      <div className="px-4 pt-8 pb-6 text-center" style={{ background: '#1f2937' }}>
-        <div className="w-20 h-20 rounded-full bg-green-600 flex items-center justify-center text-3xl font-bold text-white mx-auto mb-3">
+    <div className="min-h-screen text-white pb-24 px-4 pt-6" style={{ background: '#111827' }}>
+      <h1 className="text-xl font-bold mb-6">Mi Cuenta</h1>
+
+      {/* Avatar */}
+      <div className="flex items-center gap-4 bg-gray-900 rounded-2xl p-5 mb-4">
+        <div className="w-14 h-14 rounded-full bg-green-600 flex items-center justify-center text-xl font-bold">
           {initials}
         </div>
-        <p className="text-white font-semibold">{user?.email}</p>
-        <p className="text-gray-400 text-xs mt-1">Miembro desde {createdAt}</p>
-      </div>
-
-      <div className="px-4 pt-6 space-y-4">
-        <div className="bg-gray-900 rounded-xl divide-y divide-gray-800">
-          <Link href="/wallet" className="flex items-center justify-between px-4 py-3">
-            <span className="text-white text-sm">💳  Mi Wallet</span>
-            <span className="text-gray-500">›</span>
-          </Link>
-          <Link href="/mobile" className="flex items-center justify-between px-4 py-3">
-            <span className="text-white text-sm">⚡  Cargadores</span>
-            <span className="text-gray-500">›</span>
-          </Link>
-          <Link href="/mobile/forgot-password" className="flex items-center justify-between px-4 py-3">
-            <span className="text-white text-sm">🔑  Cambiar contraseña</span>
-            <span className="text-gray-500">›</span>
-          </Link>
+        <div>
+          <p className="text-white font-semibold">{user?.user_metadata?.full_name || 'Usuario'}</p>
+          <p className="text-gray-400 text-sm">{user?.email}</p>
+          <p className="text-gray-600 text-xs mt-0.5">Miembro desde {memberSince}</p>
         </div>
-
-        <button onClick={handleLogout} disabled={loggingOut}
-          className="w-full py-3 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors">
-          {loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
-        </button>
       </div>
+
+      {/* Push notifications */}
+      <div className="bg-gray-900 rounded-2xl p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white font-medium text-sm">Notificaciones push</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              {permission === 'granted' ? 'Activadas' : permission === 'denied' ? 'Bloqueadas en el navegador' : 'Recibe alertas de carga completada'}
+            </p>
+          </div>
+          {permission !== 'granted' && permission !== 'denied' && (
+            <button onClick={handleSubscribe} disabled={subscribing}
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg">
+              {subscribing ? '...' : 'Activar'}
+            </button>
+          )}
+          {permission === 'granted' && <span className="text-green-400 text-xs">✓ Activo</span>}
+          {permission === 'denied' && <span className="text-red-400 text-xs">Bloqueado</span>}
+        </div>
+        {subResult && <p className="text-xs mt-2 text-gray-400">{subResult}</p>}
+      </div>
+
+      {/* Quick links */}
+      <div className="bg-gray-900 rounded-2xl overflow-hidden mb-4">
+        {[
+          { label: '⚡ Mis cargas', href: '/mobile/historial' },
+          { label: '💳 Mi Wallet', href: '/wallet' },
+          { label: '🔑 Cambiar contraseña', href: '/mobile/forgot-password' },
+        ].map(link => (
+          <button key={link.href} onClick={() => router.push(link.href)}
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-gray-800 last:border-0 hover:bg-gray-800 text-left">
+            <span className="text-white text-sm">{link.label}</span>
+            <span className="text-gray-600">›</span>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={handleSignOut} disabled={signingOut}
+        className="w-full py-3 bg-red-900/40 hover:bg-red-900/60 text-red-400 font-semibold rounded-xl text-sm transition-colors">
+        {signingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+      </button>
     </div>
   )
 }

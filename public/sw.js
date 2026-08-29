@@ -1,56 +1,29 @@
-const CACHE_NAME = 'ev-charging-admin-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-];
-
-// Install: cache static assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();
-});
-
-// Activate: clean old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-// Fetch: network-first for API, cache-first for assets
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // Skip non-GET and cross-origin
-  if (request.method !== 'GET' || url.origin !== location.origin) return;
-
-  // Network-first for API routes
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request).catch(() => caches.match(request))
-    );
-    return;
+self.addEventListener('push', event => {
+  if (!event.data) return
+  const data = event.data.json()
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'ev-notification',
+    data: { url: data.url || '/mobile' },
+    actions: [
+      { action: 'open', title: 'Ver detalle' }
+    ]
   }
+  event.waitUntil(self.registration.showNotification(data.title || 'EV Charging', options))
+})
 
-  // Cache-first for everything else
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request).then((response) => {
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      });
-      return cached || fetchPromise;
-    })
-  );
-});
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/mobile'
+  event.waitUntil(clients.matchAll({ type: 'window' }).then(clientList => {
+    for (const client of clientList) {
+      if (client.url.includes('/mobile') && 'focus' in client) return client.focus()
+    }
+    if (clients.openWindow) return clients.openWindow(url)
+  }))
+})
+
+self.addEventListener('install', e => self.skipWaiting())
+self.addEventListener('activate', e => e.waitUntil(clients.claim()))
