@@ -1,57 +1,118 @@
 'use client'
-import { useEffect, useState, Suspense, useCallback } from 'react'
-import { MobileToast } from '@/components/MobileToast'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { MobileToast } from '@/components/MobileToast'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-interface Charger {
-  id: string
-  name: string | null
-  status: string | null
-  price_per_kwh: number | null
+interface Charger { id: string; name: string | null; status: string | null; price_per_kwh: number | null }
+interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
+
+const STATUS_COLOR: Record<string, string> = {
+  available: 'bg-green-500',
+  charging: 'bg-yellow-500',
+  offline: 'bg-red-500',
+  unavailable: 'bg-gray-600',
 }
-
-interface Receipt {
-  chargerName: string
-  balance: number
-  sessionId: string
-  startedAt: string
+const STATUS_LABEL: Record<string, string> = {
+  available: 'Disponible',
+  charging: 'En uso',
+  offline: 'Sin conexión',
+  unavailable: 'No disponible',
+}
+const ERROR_MAP: Record<string, string> = {
+  insufficient_balance: 'Saldo insuficiente. Recarga tu wallet.',
+  'No autenticado': 'Sesión expirada. Vuelve a iniciar sesión.',
+  'Charger not found': 'Cargador no encontrado.',
 }
 
 function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm text-center">
-        <span className="text-5xl">✅</span>
-        <h2 className="text-xl font-bold text-white mt-3 mb-1">Carga iniciada</h2>
-        <p className="text-gray-400 text-sm mb-4">Tu sesión de carga comenzó correctamente</p>
-        <div className="bg-gray-800 rounded-xl p-4 text-left space-y-2 mb-6">
-          <div className="flex justify-between">
+    <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
+      <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
+        <div className="w-16 h-16 rounded-full bg-green-900/60 border-2 border-green-500 flex items-center justify-center text-3xl mx-auto mb-4">⚡</div>
+        <h2 className="text-xl font-bold text-white mb-1">¡Carga iniciada!</h2>
+        <p className="text-gray-400 text-sm mb-5">Tu sesión está activa</p>
+        <div className="bg-gray-800 rounded-2xl p-4 text-left space-y-3 mb-5">
+          <div className="flex justify-between items-center">
             <span className="text-gray-400 text-sm">Cargador</span>
-            <span className="text-white text-sm font-medium">{receipt.chargerName}</span>
+            <span className="text-white text-sm font-semibold">{receipt.chargerName}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400 text-sm">Sesión</span>
-            <span className="text-white text-sm font-mono">{receipt.sessionId.slice(0,8)}…</span>
-          </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-gray-400 text-sm">Inicio</span>
             <span className="text-white text-sm">{new Date(receipt.startedAt).toLocaleTimeString('es-EC')}</span>
           </div>
-          <div className="flex justify-between border-t border-gray-700 pt-2 mt-2">
+          <div className="flex justify-between items-center pt-2 border-t border-gray-700">
             <span className="text-gray-400 text-sm">Saldo restante</span>
-            <span className="text-green-400 text-sm font-bold">${receipt.balance.toFixed(2)}</span>
+            <span className="text-green-400 text-lg font-bold">${receipt.balance.toFixed(2)}</span>
           </div>
         </div>
-        <button onClick={onClose}
-          className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-xl transition-colors">
-          Entendido
-        </button>
+        <button onClick={onClose} className="w-full py-3.5 bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white font-semibold rounded-2xl transition-all">Entendido</button>
+      </div>
+    </div>
+  )
+}
+
+function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
+  chargerId: string; charger: Charger | undefined; onConfirm: () => void; onCancel: () => void; loading: boolean
+}) {
+  const st = (charger?.status || '').toLowerCase()
+  const available = st === 'available'
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
+      <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
+        <div className="text-4xl mb-3">📷</div>
+        <h2 className="text-xl font-bold text-white mb-1">Cargador detectado</h2>
+        <p className="text-gray-400 text-sm mb-4">Escaneaste el código QR de:</p>
+        <div className="bg-gray-800 rounded-xl p-3 mb-4">
+          <p className="text-white font-semibold">{charger?.name || chargerId}</p>
+          <div className="flex items-center justify-center gap-1.5 mt-1">
+            <span className={`w-2 h-2 rounded-full ${STATUS_COLOR[st] || 'bg-gray-500'}`} />
+            <span className="text-gray-400 text-xs">{STATUS_LABEL[st] || charger?.status || 'Desconocido'}</span>
+          </div>
+        </div>
+        {!available && <p className="text-yellow-400 text-sm mb-4 bg-yellow-900/20 rounded-xl px-3 py-2">Este cargador no está disponible en este momento</p>}
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-sm font-medium transition-colors">Cancelar</button>
+          <button onClick={onConfirm} disabled={loading}
+            className="flex-1 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold rounded-2xl text-sm transition-all active:scale-[0.98]">
+            {loading ? <span className="flex items-center justify-center gap-1"><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Iniciando</span> : 'Iniciar carga'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChargerCard({ charger, onStart, loading }: { charger: Charger; onStart: () => void; loading: boolean }) {
+  const st = (charger.status || '').toLowerCase()
+  const available = st === 'available'
+  return (
+    <div className={`bg-gray-900 rounded-2xl p-4 border transition-all ${available ? 'border-green-800/40' : 'border-gray-800'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${available ? 'bg-green-900/40' : 'bg-gray-800'}`}>
+            ⚡
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm">{charger.name || charger.id}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[st] || 'bg-gray-500'}`} />
+              <span className="text-xs text-gray-400">{STATUS_LABEL[st] || charger.status}</span>
+              {charger.price_per_kwh && <span className="text-xs text-gray-600">· ${charger.price_per_kwh}/kWh</span>}
+            </div>
+          </div>
+        </div>
+        {available && (
+          <button onClick={onStart} disabled={loading}
+            className="px-4 py-2 bg-green-600 hover:bg-green-500 active:scale-[0.96] disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all">
+            {loading
+              ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              : 'Cargar'
+            }
+          </button>
+        )}
       </div>
     </div>
   )
@@ -64,20 +125,21 @@ function MobileContent() {
   const [loading, setLoading] = useState(true)
   const [loadingCharger, setLoadingCharger] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
-  const [qrConfirm, setQrConfirm] = useState<string | null>(null) // charger id from QR
+  const [qrConfirm, setQrConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
+  const [balance, setBalance] = useState<number | null>(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/mobile/login')
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { router.push('/mobile/login'); return }
+      // Load balance
+      fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
     })
     fetchChargers()
     const iv = setInterval(fetchChargers, 15000)
-
-    // Check for ?charger= param (from QR scan)
     const qrCharger = params.get('charger')
     if (qrCharger) setQrConfirm(qrCharger)
-
     return () => clearInterval(iv)
   }, [router, params])
 
@@ -93,37 +155,20 @@ function MobileContent() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/mobile/login'); return }
-
       const res = await fetch('/api/charging/start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ chargerId }),
       })
       const data = await res.json()
-      if (res.status === 402) { setToast({ msg: 'Saldo insuficiente. Recarga tu wallet.', type: 'error' }); router.push('/wallet'); return }
-      if (!res.ok) { setToast({ msg: translateError(data.error) || 'Error al iniciar carga', type: 'error' }); return }
-
-      setReceipt({
-        chargerName: data.chargerName || chargerId,
-        balance: data.balance ?? 0,
-        sessionId: data.sessionId,
-        startedAt: new Date().toISOString(),
-      })
+      if (res.status === 402) { setToast({ msg: 'Saldo insuficiente. Recarga tu wallet.', type: 'error' }); setTimeout(() => router.push('/wallet'), 1800); return }
+      if (!res.ok) { setToast({ msg: ERROR_MAP[data.error] || 'Error al iniciar carga', type: 'error' }); return }
+      setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, sessionId: data.sessionId, startedAt: new Date().toISOString() })
       fetchChargers()
+      // Refresh balance
+      setBalance(data.balance ?? 0)
     } catch { setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' }) }
     finally { setLoadingCharger(null) }
-  }
-
-  function translateError(msg: string): string {
-    const map: Record<string, string> = {
-      'insufficient_balance': 'Saldo insuficiente. Recarga tu wallet.',
-      'No autenticado': 'Tu sesión expiró. Vuelve a iniciar sesión.',
-      'Charger not found': 'Cargador no encontrado.',
-    }
-    return map[msg] || msg
   }
 
   const qrCharger = qrConfirm ? chargers.find(c => c.id === qrConfirm) : null
@@ -131,96 +176,71 @@ function MobileContent() {
   const unavailable = chargers.filter(c => (c.status || '').toLowerCase() !== 'available')
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#111827' }}>
-      <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent mx-auto mb-3" />
+        <p className="text-gray-500 text-sm">Buscando cargadores...</p>
+      </div>
     </div>
   )
 
   return (
-    <div className="min-h-screen text-white pb-20 px-4 pt-6" style={{ background: '#111827' }}>
+    <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
-      {/* QR confirm modal */}
-      {qrConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm text-center">
-            <span className="text-4xl">⚡</span>
-            <h2 className="text-xl font-bold text-white mt-3 mb-1">Iniciar carga</h2>
-            <p className="text-gray-400 text-sm mb-2">Cargador detectado:</p>
-            <p className="text-green-400 font-bold text-lg mb-6">{qrCharger?.name || qrConfirm}</p>
-            {qrCharger?.status?.toLowerCase() !== 'available' && (
-              <p className="text-yellow-400 text-sm mb-4">⚠️ Este cargador no está disponible ({qrCharger?.status || 'Offline'})</p>
-            )}
-            <div className="flex gap-2">
-              <button onClick={() => { setQrConfirm(null); router.replace('/mobile') }}
-                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-sm">Cancelar</button>
-              <button onClick={() => startCharge(qrConfirm)} disabled={!!loadingCharger}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold rounded-xl text-sm">
-                {loadingCharger ? 'Iniciando...' : 'Iniciar carga'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Receipt modal */}
+      {qrConfirm && <QrConfirmModal chargerId={qrConfirm} charger={qrCharger} onConfirm={() => startCharge(qrConfirm)} onCancel={() => { setQrConfirm(null); router.replace('/mobile') }} loading={loadingCharger === qrConfirm} />}
       {receipt && <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">⚡ Cargadores EV</h1>
+      {/* Header */}
+      <div className="px-4 pt-6 pb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white">Cargadores</h1>
+          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s</p>
+        </div>
         <button onClick={() => router.push('/wallet')}
-          className="text-sm text-green-400 border border-green-700 px-3 py-1 rounded-lg">
-          Mi Wallet
+          className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
+          <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
+          <span className="text-gray-500 text-xs">→</span>
         </button>
       </div>
 
-      {available.length > 0 && (
-        <div className="mb-6">
-          <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mb-3">DISPONIBLES ({available.length})</p>
-          <div className="space-y-3">
-            {available.map(c => (
-              <div key={c.id} className="bg-gray-900 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-white font-semibold">{c.name || c.id}</p>
-                  <p className="text-gray-500 text-xs">${c.price_per_kwh ?? 0.15}/kWh</p>
-                </div>
-                <button
-                  onClick={() => startCharge(c.id)}
-                  disabled={loadingCharger === c.id}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors">
-                  {loadingCharger === c.id ? '...' : 'Cargar'}
-                </button>
-              </div>
-            ))}
+      <div className="px-4 space-y-6">
+        {available.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles · {available.length}</p>
+            <div className="space-y-2">
+              {available.map(c => (
+                <ChargerCard key={c.id} charger={c} onStart={() => startCharge(c.id)} loading={loadingCharger === c.id} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {available.length === 0 && !loading && (
-        <div className="bg-gray-900 rounded-xl p-6 text-center mb-4">
-          <p className="text-gray-500 text-sm">No hay cargadores disponibles en este momento</p>
-        </div>
-      )}
-
-      {unavailable.length > 0 && (
-        <div>
-          <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-3">NO DISPONIBLES ({unavailable.length})</p>
-          <div className="space-y-2">
-            {unavailable.map(c => (
-              <div key={c.id} className="bg-gray-900/50 rounded-xl p-4 flex items-center justify-between opacity-60">
-                <p className="text-gray-400 font-medium">{c.name || c.id}</p>
-                <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full">{c.status || 'Offline'}</span>
-              </div>
-            ))}
+        {available.length === 0 && (
+          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
+            <p className="text-3xl mb-3">🔌</p>
+            <p className="text-white font-medium mb-1">Sin cargadores disponibles</p>
+            <p className="text-gray-500 text-sm">El sistema verifica automáticamente cada 15 segundos</p>
           </div>
-        </div>
-      )}
+        )}
+
+        {unavailable.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">No disponibles · {unavailable.length}</p>
+            <div className="space-y-2 opacity-50">
+              {unavailable.map(c => (
+                <ChargerCard key={c.id} charger={c} onStart={() => {}} loading={false} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 export default function MobilePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#111827' }}><div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}><div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" /></div>}>
       <MobileContent />
     </Suspense>
   )
