@@ -1,12 +1,20 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, lazy } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MobileToast } from '@/components/MobileToast'
 
+const ChargerMap = lazy(() => import('@/components/ChargerMap'))
 
-
-interface Charger { id: string; name: string | null; status: string | null; price_per_kwh: number | null }
+interface Charger {
+  id: string
+  name: string | null
+  status: string | null
+  price_per_kwh: number | null
+  latitude: number | null
+  longitude: number | null
+  location: string | null
+}
 interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -102,6 +110,7 @@ function ChargerCard({ charger, onStart, loading }: { charger: Charger; onStart:
               <span className="text-xs text-gray-400">{STATUS_LABEL[st] || charger.status}</span>
               {charger.price_per_kwh && <span className="text-xs text-gray-600">· ${charger.price_per_kwh}/kWh</span>}
             </div>
+            {charger.location && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[160px]">{charger.location}</p>}
           </div>
         </div>
         {available && (
@@ -118,6 +127,31 @@ function ChargerCard({ charger, onStart, loading }: { charger: Charger; onStart:
   )
 }
 
+function MapToggle({ mapView, onToggle }: { mapView: boolean; onToggle: () => void }) {
+  return (
+    <div className="flex bg-gray-800 rounded-xl p-1 gap-1">
+      <button
+        onClick={() => !mapView && onToggle()}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!mapView ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        </svg>
+        Lista
+      </button>
+      <button
+        onClick={() => mapView && onToggle()}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${mapView ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+        Mapa
+      </button>
+    </div>
+  )
+}
+
 function MobileContent() {
   const router = useRouter()
   const params = useSearchParams()
@@ -128,11 +162,11 @@ function MobileContent() {
   const [qrConfirm, setQrConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
+  const [mapView, setMapView] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.push('/mobile/login'); return }
-      // Load balance
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
     })
@@ -144,7 +178,10 @@ function MobileContent() {
   }, [router, params])
 
   async function fetchChargers() {
-    const { data } = await supabase.from('chargers').select('id, name, status, price_per_kwh').order('name')
+    const { data } = await supabase
+      .from('chargers')
+      .select('id, name, status, price_per_kwh, latitude, longitude, location')
+      .order('name')
     if (data) setChargers(data)
     setLoading(false)
   }
@@ -165,7 +202,6 @@ function MobileContent() {
       if (!res.ok) { setToast({ msg: ERROR_MAP[data.error] || 'Error al iniciar carga', type: 'error' }); return }
       setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, sessionId: data.sessionId, startedAt: new Date().toISOString() })
       fetchChargers()
-      // Refresh balance
       setBalance(data.balance ?? 0)
     } catch { setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' }) }
     finally { setLoadingCharger(null) }
@@ -174,6 +210,9 @@ function MobileContent() {
   const qrCharger = qrConfirm ? chargers.find(c => c.id === qrConfirm) : null
   const available = chargers.filter(c => (c.status || '').toLowerCase() === 'available')
   const unavailable = chargers.filter(c => (c.status || '').toLowerCase() !== 'available')
+  const mappableChargers = chargers
+    .filter(c => c.latitude && c.longitude)
+    .map(c => ({ id: c.id, name: c.name, status: c.status || 'unknown', location: c.location, lat: c.latitude!, lng: c.longitude! }))
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
@@ -194,46 +233,73 @@ function MobileContent() {
       <div className="px-4 pt-6 pb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Cargadores</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s</p>
+          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s · {chargers.length} estaciones</p>
         </div>
-        <button onClick={() => router.push('/wallet')}
-          className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
-          <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
-          <span className="text-gray-500 text-xs">→</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <MapToggle mapView={mapView} onToggle={() => setMapView(v => !v)} />
+          <button onClick={() => router.push('/wallet')}
+            className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
+            <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
+          </button>
+        </div>
       </div>
 
-      <div className="px-4 space-y-6">
-        {available.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles · {available.length}</p>
-            <div className="space-y-2">
-              {available.map(c => (
-                <ChargerCard key={c.id} charger={c} onStart={() => startCharge(c.id)} loading={loadingCharger === c.id} />
-              ))}
+      {/* Map view */}
+      {mapView && (
+        <div className="px-4 mb-4">
+          {mappableChargers.length > 0 ? (
+            <div className="rounded-2xl overflow-hidden border border-gray-800">
+              <Suspense fallback={<div className="h-72 bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-2 border-green-400 border-t-transparent" /></div>}>
+                <ChargerMap chargers={mappableChargers} />
+              </Suspense>
+              <div className="bg-gray-900 px-4 py-2 flex gap-4 text-xs text-gray-500 border-t border-gray-800">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Disponible</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />En uso</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-500 inline-block" />Sin conexión</span>
+              </div>
             </div>
-          </div>
-        )}
-
-        {available.length === 0 && (
-          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
-            <p className="text-3xl mb-3">🔌</p>
-            <p className="text-white font-medium mb-1">Sin cargadores disponibles</p>
-            <p className="text-gray-500 text-sm">El sistema verifica automáticamente cada 15 segundos</p>
-          </div>
-        )}
-
-        {unavailable.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">No disponibles · {unavailable.length}</p>
-            <div className="space-y-2 opacity-50">
-              {unavailable.map(c => (
-                <ChargerCard key={c.id} charger={c} onStart={() => {}} loading={false} />
-              ))}
+          ) : (
+            <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
+              <p className="text-gray-500 text-sm">Ningún cargador tiene coordenadas configuradas</p>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {/* List view */}
+      {!mapView && (
+        <div className="px-4 space-y-6">
+          {available.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles · {available.length}</p>
+              <div className="space-y-2">
+                {available.map(c => (
+                  <ChargerCard key={c.id} charger={c} onStart={() => startCharge(c.id)} loading={loadingCharger === c.id} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {available.length === 0 && (
+            <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
+              <p className="text-3xl mb-3">🔌</p>
+              <p className="text-white font-medium mb-1">Sin cargadores disponibles</p>
+              <p className="text-gray-500 text-sm">El sistema verifica automáticamente cada 15 segundos</p>
+            </div>
+          )}
+
+          {unavailable.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">No disponibles · {unavailable.length}</p>
+              <div className="space-y-2 opacity-50">
+                {unavailable.map(c => (
+                  <ChargerCard key={c.id} charger={c} onStart={() => {}} loading={false} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
