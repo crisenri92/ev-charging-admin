@@ -76,7 +76,8 @@ function WalletContent() {
   }
 
   function txIcon(type: string, amount: number) {
-    if (type === 'topup' || amount > 0) return '💳'
+    if (type === 'voucher') return '🎁'
+    if (type === 'balance_recharge' || type === 'topup' || amount > 0) return '💳'
     if (type === 'charge') return '⚡'
     return '💸'
   }
@@ -89,7 +90,29 @@ function WalletContent() {
     return d.toLocaleDateString('es-EC', { day: '2-digit', month: 'short' })
   }
 
+  const [voucherCode, setVoucherCode] = useState('')
+  const [redeeming, setRedeeming] = useState(false)
   const customAmt = parseFloat(customAmount)
+
+  async function redeemVoucher() {
+    if (!voucherCode.trim() || redeeming) return
+    setRedeeming(true)
+    try {
+      const token = await getToken()
+      if (!token) { router.push('/mobile/login'); return }
+      const res = await fetch('/api/vouchers/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ code: voucherCode }),
+      })
+      const d = await res.json()
+      if (!res.ok) { setToast({ msg: d.error || 'Código inválido', type: 'error' }); return }
+      setToast({ msg: `+$${d.amount.toFixed(2)} agregados a tu wallet 🎉`, type: 'success' })
+      setVoucherCode('')
+      loadData()
+    } catch { setToast({ msg: 'Error de conexión', type: 'error' }) }
+    finally { setRedeeming(false) }
+  }
 
   return (
     <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
@@ -142,6 +165,27 @@ function WalletContent() {
             disabled={recharging || !customAmount || customAmt < 1}
             className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
             {recharging ? '...' : 'Recargar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Voucher section */}
+      <div className="px-4 mb-6">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Ej: BIENVENIDA"
+            value={voucherCode}
+            onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && redeemVoucher()}
+            className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm font-mono tracking-widest transition-all uppercase"
+          />
+          <button
+            onClick={redeemVoucher}
+            disabled={redeeming || !voucherCode.trim()}
+            className="px-5 py-3 bg-purple-700 hover:bg-purple-600 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
+            {redeeming ? '...' : 'Canjear'}
           </button>
         </div>
       </div>
