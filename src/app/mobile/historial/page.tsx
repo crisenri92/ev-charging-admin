@@ -1,70 +1,52 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+import { supabase } from '@/lib/supabase'
+import { useMobileAuth } from '@/hooks/useMobileAuth'
 
 interface Session {
-  id: string
-  started_at: string
-  ended_at: string | null
-  energy_kwh: number | null
-  cost: number | null
-  status: string
-  charger_id: string
-  chargers?: { name: string | null }
+  id: string; started_at: string; ended_at: string | null
+  energy_kwh: number | null; cost: number | null; status: string
+  charger_id: string; chargers?: { name: string | null }
 }
 
 function duration(start: string, end: string | null) {
   if (!end) return 'En curso'
   const s = Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000)
   if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60), rem = s % 60
-  if (m < 60) return `${m}m ${rem}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ${s % 60}s`
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
 function relDate(d: string) {
-  const now = new Date(), dt = new Date(d)
-  const diff = Math.floor((now.getTime() - dt.getTime()) / 1000)
+  const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000)
   if (diff < 60) return 'Ahora'
   if (diff < 3600) return `Hace ${Math.floor(diff / 60)}m`
   if (diff < 86400) return `Hace ${Math.floor(diff / 3600)}h`
   if (diff < 172800) return 'Ayer'
-  return dt.toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })
+  return new Date(d).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })
 }
 
 export default function HistorialPage() {
-  const router = useRouter()
+  const { user, loading } = useMobileAuth()
   const [sessions, setSessions] = useState<Session[]>([])
-  const [loading, setLoading] = useState(true)
-  const [totalKwh, setTotalKwh] = useState(0)
-  const [totalCost, setTotalCost] = useState(0)
+  const [dataLoading, setDataLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { router.push('/mobile/login'); return }
-      const { data } = await supabase
-        .from('charging_sessions')
-        .select('*, chargers(name)')
-        .eq('user_id', session.user.id)
-        .order('started_at', { ascending: false })
-        .limit(50)
-      if (data) {
-        setSessions(data)
-        setTotalKwh(data.reduce((s, r) => s + (r.energy_kwh || 0), 0))
-        setTotalCost(data.reduce((s, r) => s + (r.cost || 0), 0))
-      }
-      setLoading(false)
-    })
-  }, [router])
+    if (!user) return
+    supabase.from('charging_sessions').select('*, chargers(name)')
+      .eq('user_id', user.id).order('started_at', { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setSessions(data); setDataLoading(false) })
+  }, [user])
 
-  if (loading) return (
+  if (loading || dataLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
       <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" />
     </div>
   )
+
+  const totalKwh = sessions.reduce((s, r) => s + (r.energy_kwh || 0), 0)
+  const totalCost = sessions.reduce((s, r) => s + (r.cost || 0), 0)
 
   return (
     <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
@@ -97,23 +79,20 @@ export default function HistorialPage() {
           <div key={s.id} className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 ${s.status === 'active' ? 'bg-yellow-900/40' : 'bg-green-900/30'}`}>
-                  ⚡
-                </div>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 ${s.status === 'active' ? 'bg-yellow-900/40' : 'bg-green-900/30'}`}>⚡</div>
                 <div>
                   <p className="text-white text-sm font-semibold">{s.chargers?.name || s.charger_id}</p>
                   <p className="text-gray-500 text-xs mt-0.5">{relDate(s.started_at)} · {duration(s.started_at, s.ended_at)}</p>
                 </div>
               </div>
               <div className="text-right shrink-0 ml-2">
-                {s.status === 'active' ? (
-                  <span className="text-xs font-semibold text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded-full">En curso</span>
-                ) : (
-                  <>
-                    <p className="text-white text-sm font-bold">${(s.cost || 0).toFixed(2)}</p>
-                    <p className="text-gray-500 text-xs">{(s.energy_kwh || 0).toFixed(2)} kWh</p>
-                  </>
-                )}
+                {s.status === 'active'
+                  ? <span className="text-xs font-semibold text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded-full">En curso</span>
+                  : <>
+                      <p className="text-white text-sm font-bold">${(s.cost || 0).toFixed(2)}</p>
+                      <p className="text-gray-500 text-xs">{(s.energy_kwh || 0).toFixed(2)} kWh</p>
+                    </>
+                }
               </div>
             </div>
           </div>

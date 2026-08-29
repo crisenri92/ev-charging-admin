@@ -3,12 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from '@/components/Toast'
 import dynamic from 'next/dynamic'
 const ChargerQRModal = dynamic(() => import('@/components/ChargerQRModal'), { ssr: false })
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 const OCPP_WS_URL = 'wss://ev-charging-csms-production.up.railway.app/dashboard'
 

@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useState, Suspense } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MobileToast } from '@/components/MobileToast'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
 
 interface Charger { id: string; name: string | null; status: string | null; price_per_kwh: number | null }
 interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
