@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Sidebar } from '@/components/Sidebar'
+import Sidebar from '@/components/Sidebar'
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
