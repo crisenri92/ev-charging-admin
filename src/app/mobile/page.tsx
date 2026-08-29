@@ -93,7 +93,7 @@ function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
   )
 }
 
-function ChargerCard({ charger, onStart, loading }: { charger: Charger; onStart: () => void; loading: boolean }) {
+function ChargerCard({ charger, onStart, loading, dynamicPrice }: { charger: Charger; onStart: () => void; loading: boolean; dynamicPrice?: { price: number; ruleName: string } | null }) {
   const st = (charger.status || '').toLowerCase()
   const available = st === 'available'
   return (
@@ -108,7 +108,7 @@ function ChargerCard({ charger, onStart, loading }: { charger: Charger; onStart:
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[st] || 'bg-gray-500'}`} />
               <span className="text-xs text-gray-400">{STATUS_LABEL[st] || charger.status}</span>
-              {charger.price_per_kwh && <span className="text-xs text-gray-600">· ${charger.price_per_kwh}/kWh</span>}
+              {dynamicPrice && <span className="text-xs text-green-700">· ${dynamicPrice.price.toFixed(2)}/kWh · {dynamicPrice.ruleName}</span>}
             </div>
             {charger.location && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[160px]">{charger.location}</p>}
           </div>
@@ -163,6 +163,7 @@ function MobileContent() {
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
   const [mapView, setMapView] = useState(false)
+  const [currentPricing, setCurrentPricing] = useState<{ price: number; ruleName: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -171,6 +172,7 @@ function MobileContent() {
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
     })
     fetchChargers()
+    fetch('/api/pricing').then(r => r.json()).then(d => setCurrentPricing(d)).catch(() => {})
     const iv = setInterval(fetchChargers, 15000)
     const qrCharger = params.get('charger')
     if (qrCharger) setQrConfirm(qrCharger)
@@ -274,7 +276,7 @@ function MobileContent() {
               <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles · {available.length}</p>
               <div className="space-y-2">
                 {available.map(c => (
-                  <ChargerCard key={c.id} charger={c} onStart={() => startCharge(c.id)} loading={loadingCharger === c.id} />
+                  <ChargerCard key={c.id} charger={c} onStart={() => startCharge(c.id)} loading={loadingCharger === c.id} dynamicPrice={currentPricing} />
                 ))}
               </div>
             </div>
