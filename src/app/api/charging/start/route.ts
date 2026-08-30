@@ -38,6 +38,13 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    // Auto-cancel active reservation for this charger by this user
+    await supabase.from('charger_reservations')
+      .update({ status: 'cancelled' })
+      .eq('charger_id', chargerId)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+
     return NextResponse.json({
       sessionId: session.id,
       balance,
