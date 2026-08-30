@@ -24,7 +24,6 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,6 +32,7 @@ export default function RegisterPage() {
     if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
 
+    // 1. Create account
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -45,38 +45,30 @@ export default function RegisterPage() {
       return
     }
 
-    // If email confirmation is disabled, user is logged in immediately
-    if (data.session) {
-      // Create user_balances row
-      await fetch('/api/wallet/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
-      }).catch(() => {})
-      router.push('/mobile')
-    } else {
-      // Email confirmation required
-      setSuccess(true)
+    const userId = data.user?.id
+    if (!userId) {
+      setError('Error al crear la cuenta. Intenta de nuevo.')
+      setLoading(false)
+      return
     }
-    setLoading(false)
-  }
 
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-5 py-10" style={{ background: '#0f172a' }}>
-        <div className="w-full max-w-sm text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-green-600 mb-4 shadow-lg shadow-green-900/40">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Revisa tu email</h2>
-          <p className="text-gray-400 text-sm mb-6">Enviamos un enlace de confirmación a <span className="text-white font-medium">{email}</span>. Haz clic en el enlace para activar tu cuenta.</p>
-          <Link href="/mobile/login" className="text-green-400 hover:text-green-300 text-sm font-medium transition-colors">
-            ← Volver al login
-          </Link>
-        </div>
-      </div>
-    )
+    // 2. Auto-confirm email server-side (no email confirmation needed)
+    await fetch('/api/auth/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    })
+
+    // 3. Sign in immediately
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setError('Cuenta creada. Inicia sesión.')
+      setLoading(false)
+      router.push('/mobile/login')
+      return
+    }
+
+    router.push('/mobile')
   }
 
   return (
