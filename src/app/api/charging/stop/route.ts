@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getCurrentPrice } from '@/lib/pricing'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-const PRICE_PER_KWH = 0.15
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
 
     const session = sessions[0]
     const energyKwh = meterStop && meterStart ? (meterStop - meterStart) / 1000 : 0
-    const cost = parseFloat((energyKwh * PRICE_PER_KWH).toFixed(4))
+    const { price: pricePerKwh } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
     const now = new Date().toISOString()
 
     await supabase.from('charging_sessions').update({
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
       const newBalance = Math.max(0, currentBalance - cost)
       await supabase.from('user_balances').update({ balance: newBalance }).eq('user_id', session.user_id)
       await supabase.from('balance_transactions').insert({
-        user_id: session.user_id, amount: -cost, type: 'charge',
+        user_id: session.user_id, amount: -cost,
+        type: 'charge_deduction',
         description: `Sesión de carga - ${session.charger_name || session.charger_id} - ${energyKwh.toFixed(3)} kWh`,
         balance_after: newBalance, reference_id: session.id,
       })

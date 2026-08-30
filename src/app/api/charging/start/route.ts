@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       charger_name: charger?.name || chargerId,
       status: 'active',
       started_at: new Date().toISOString(),
-      price_per_kwh: pricePerKwh,
+      // price_per_kwh not in schema — returned in response only
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

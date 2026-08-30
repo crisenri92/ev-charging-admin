@@ -78,7 +78,7 @@ function WalletContent() {
   function txIcon(type: string, amount: number) {
     if (type === 'voucher') return '🎁'
     if (type === 'balance_recharge' || type === 'topup' || amount > 0) return '💳'
-    if (type === 'charge') return '⚡'
+    if (type === 'charge' || type === 'charge_deduction') return '⚡'
     return '💸'
   }
 
