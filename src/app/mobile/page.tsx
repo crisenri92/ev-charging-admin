@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { MobileToast } from '@/components/MobileToast'
 
 const ChargerMap = lazy(() => import('@/components/ChargerMap'))
+const PWAInstallBanner = lazy(() => import('@/components/PWAInstallBanner'))
 
 interface Charger {
   id: string
@@ -378,6 +379,8 @@ function MobileContent() {
           </button>
         </div>
       </div>
+
+      <Suspense fallback={null}><PWAInstallBanner /></Suspense>
 
       {/* Active reservations banner */}
       {myReservations.length > 0 && (
