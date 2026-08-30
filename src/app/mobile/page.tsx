@@ -13,7 +13,7 @@ interface Charger {
   price_per_kwh: number | null
   latitude: number | null
   longitude: number | null
-  location: string | null
+  address: string | null
 }
 interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
 interface Reservation { id: string; charger_id: string; charger_name: string; expires_at: string; duration_minutes: number }
@@ -162,7 +162,7 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
               <span className="text-xs text-gray-400">{STATUS_LABEL[st] || charger.status}</span>
               {dynamicPrice && !isReservedByOther && <span className="text-xs text-green-700">· ${dynamicPrice.price.toFixed(2)}/kWh</span>}
             </div>
-            {charger.location && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[180px]">{charger.location}</p>}
+            {charger.address && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[180px]">{charger.address}</p>}
             {isReservedByMe && <p className="text-xs text-blue-400 mt-0.5">Tu reserva activa</p>}
           </div>
         </div>
@@ -255,7 +255,7 @@ function MobileContent() {
   async function fetchChargers() {
     const { data } = await supabase
       .from('chargers')
-      .select('id, name, status, price_per_kwh, latitude, longitude, location')
+      .select('id, name, status, price_per_kwh, latitude, longitude, address')
       .order('name')
     if (data) {
       setChargers(data)
@@ -336,7 +336,7 @@ function MobileContent() {
   const available = chargers.filter(c => (c.status || '').toLowerCase() === 'available')
   const unavailable = chargers.filter(c => (c.status || '').toLowerCase() !== 'available')
   const mappableChargers = chargers.filter(c => c.latitude && c.longitude)
-    .map(c => ({ id: c.id, name: c.name, status: c.status || 'unknown', location: c.location, lat: c.latitude!, lng: c.longitude! }))
+    .map(c => ({ id: c.id, name: c.name, status: c.status || 'unknown', location: c.address, lat: c.latitude!, lng: c.longitude! }))
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
