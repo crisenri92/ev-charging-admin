@@ -218,6 +218,7 @@ function MobileContent() {
   const [qrConfirm, setQrConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [mapView, setMapView] = useState(false)
   const [currentPricing, setCurrentPricing] = useState<{ price: number; ruleName: string } | null>(null)
   const [myReservations, setMyReservations] = useState<Reservation[]>([])
@@ -236,6 +237,7 @@ function MobileContent() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.push('/mobile/login'); return }
+      setUser(session.user)
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
       fetchReservations(session.access_token)
@@ -369,6 +371,10 @@ function MobileContent() {
           <button onClick={() => router.push('/wallet')}
             className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
             <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
+          </button>
+          <button onClick={() => router.push('/mobile/profile')}
+            className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
           </button>
         </div>
       </div>
