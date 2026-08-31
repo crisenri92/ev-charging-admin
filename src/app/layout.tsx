@@ -8,13 +8,13 @@ import { ToastContainer } from '@/components/Toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'EV Charging Admin',
-  description: 'CSMS Dashboard',
+  title: 'RECARGAT',
+  description: 'Recarga tu vehículo eléctrico fácil y rápido',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'EV Admin',
+    title: 'RECARGAT',
   },
 }
 

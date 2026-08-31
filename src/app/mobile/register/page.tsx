@@ -71,7 +71,7 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white">Crear cuenta</h1>
-          <p className="text-slate-400 text-sm mt-1">Únete a EV Charging</p>
+          <p className="text-slate-400 text-sm mt-1">Únete a RECARGAT</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

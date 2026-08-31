@@ -1,7 +1,7 @@
 {
-  "name": "EV Charging Admin",
-  "short_name": "EV Admin",
-  "description": "Panel de administraci\u00f3n para red de carga de veh\u00edculos el\u00e9ctricos",
+  "name": "RECARGAT",
+  "short_name": "RECARGAT",
+  "description": "Recarga tu vehículo eléctrico fácil y rápido",
   "theme_color": "#111827",
   "background_color": "#111827",
   "display": "standalone",
