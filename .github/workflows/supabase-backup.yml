@@ -1,0 +1,37 @@
+name: Supabase Daily Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export Supabase tables
+        env:
+          SUPABASE_URL: https://gxuqwjeenjxiljdfegqr.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          mkdir -p backup
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          for TABLE in profiles wallets transactions charging_sessions stations payments; do
+            STATUS=$(curl -s -o "backup/${TABLE}_${TIMESTAMP}.csv" -w "%{http_code}" \\
+              -H "apikey: $SUPABASE_KEY" \\
+              -H "Authorization: Bearer $SUPABASE_KEY" \\
+              -H "Accept: text/csv" \\
+              "$SUPABASE_URL/rest/v1/${TABLE}?select=*&limit=100000")
+            [ "$STATUS" = "200" ] && echo "OK: $TABLE" || rm -f "backup/${TABLE}_${TIMESTAMP}.csv"
+          done
+          echo "Backup $(date -u)" > backup/README.txt
+          ls -lh backup/ >> backup/README.txt
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_number }}
+          path: backup/
+          retention-days: 30
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Supabase backup failed"
