@@ -34,7 +34,7 @@ export default function LoginPage() {
       <div className="bg-gray-900 rounded-2xl shadow-2xl p-8 w-full max-w-sm">
         <div className="text-center mb-8">
           <span className="text-4xl">⚡</span>
-          <h1 className="text-2xl font-bold text-white mt-2">EV Admin</h1>
+          <h1 className="text-2xl font-bold text-white mt-2">RECARGAT</h1>
           <p className="text-gray-400 text-sm mt-1">Panel de administración</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
