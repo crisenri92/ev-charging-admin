@@ -62,9 +62,8 @@ export class DeunaClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    const credentials = Buffer.from(`${this.config.apiKey}:${this.config.apiSecret}`).toString('base64');
     return {
-      'Authorization': `Basic ${credentials}`,
+      'Ocp-Apim-Subscription-Key': this.config.apiKey,
       'Content-Type': 'application/json',
       'X-Point-Of-Sale': this.config.pointOfSale,
     };
