@@ -11,6 +11,7 @@ export default function AccountPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [signingOut, setSigningOut] = useState(false)
+  const [stats, setStats] = useState<{sessions: number; kwh: number; cost: number} | null>(null)
   const { permission, subscribed, subscribe } = usePushNotifications()
   const [subscribing, setSubscribing] = useState(false)
   const [subResult, setSubResult] = useState<string | null>(null)
@@ -20,6 +21,14 @@ export default function AccountPage() {
       if (!session) { router.push('/mobile/login'); return }
       setUser(session.user)
       setLoading(false)
+      // Fetch charging stats
+      supabase.from('charging_sessions').select('energy_kwh, cost').eq('user_id', session.user.id).eq('status', 'completed').then(({ data }) => {
+        if (data) setStats({
+          sessions: data.length,
+          kwh: data.reduce((s, r) => s + (r.energy_kwh || 0), 0),
+          cost: data.reduce((s, r) => s + (r.cost || 0), 0)
+        })
+      })
     })
   }, [router])
 
@@ -61,7 +70,26 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* Push notifications */}
+      
+      {/* Stats */}
+      {stats && stats.sessions > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+            <p className="text-xl font-bold text-white">{stats.sessions}</p>
+            <p className="text-gray-500 text-xs mt-0.5">Sesiones</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+            <p className="text-xl font-bold text-green-400">{stats.kwh.toFixed(1)}</p>
+            <p className="text-gray-500 text-xs mt-0.5">kWh</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+            <p className="text-xl font-bold text-white">{(stats.kwh * 0.233).toFixed(1)}</p>
+            <p className="text-gray-500 text-xs mt-0.5">kg CO₂ 🌱</p>
+          </div>
+        </div>
+      )}
+
+{/* Push notifications */}
       <div className="bg-gray-900 rounded-2xl p-4 mb-4">
         <div className="flex items-center justify-between">
           <div>
