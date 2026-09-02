@@ -112,15 +112,19 @@ export class DeunaClient {
     };
   }
 
-  async getPaymentStatus(internalReference: string, type: string): Promise<DeunaPaymentStatusResponse> {
-    const url = `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}?type=${type}`;
-    console.log('[DeunaClient] GET status', internalReference);
+  async getPaymentStatus(transactionId: string, idType: string = '0'): Promise<DeunaPaymentStatusResponse> {
+    const url = `${this.config.baseUrl}/merchant/v1/payment/info`;
+    console.log('[DeunaClient] POST payment/info', transactionId);
 
     const response = await this.fetchWithTimeout(
       url,
       {
-        method: 'GET',
+        method: 'POST',
         headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          idTransacionReference: transactionId,
+          idType: idType,
+        }),
       }
     );
 
@@ -140,7 +144,7 @@ export class DeunaClient {
       ordererName: data.ordererName || data.orderer_name || '',
       ordererIdentification: data.ordererIdentification || data.orderer_identification || '',
       transferNumber: data.transferNumber || data.transfer_number || '',
-      internalTransactionReference: data.internalTransactionReference || data.internal_transaction_reference || internalReference,
+      internalTransactionReference: data.internalTransactionReference || data.internal_transaction_reference || transactionId,
       branchId: data.branchId || data.branch_id || '',
       posId: data.posId || data.pos_id || '',
     };
