@@ -415,10 +415,10 @@ function MobileContent() {
       )}
 
       {/* Header */}
-      <div className="px-4 pt-6 pb-4 flex items-center justify-between">
+      <div className="px-4 pb-4 flex items-center justify-between" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
         <div>
           <h1 className="text-xl font-bold text-white">Cargadores</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s · {chargers.length} estaciones</p>
+          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s · {chargers.length} {chargers.length === 1 ? 'estación' : 'estaciones'}</p>
         </div>
         <div className="flex items-center gap-2">
           <MapToggle mapView={mapView} onToggle={() => setMapView(v => !v)} />
@@ -477,7 +477,7 @@ function MobileContent() {
       {mapView && (
         <div className="mb-0">
           {mappableChargers.length > 0 ? (
-            <div className="rounded-none overflow-hidden" style={{height:'calc(100vh - 130px - 64px)',minHeight:320}}>
+            <div className="rounded-none overflow-hidden" style={{height:'calc(100dvh - 130px - 64px)',minHeight:320}}>
               <Suspense fallback={<div className="h-72 bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-2 border-green-400 border-t-transparent" /></div>}>
                 <ChargerMap chargers={mappableChargers} />
               </Suspense>
