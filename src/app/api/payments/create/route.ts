@@ -58,7 +58,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Rutear al use case correspondiente
-    console.log('[Payment Create] Routing to use case', { context, provider });
 
     if (context === PaymentContext.WALLET_RECHARGE) {
       // Usar RechargeWalletUseCase
