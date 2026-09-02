@@ -36,7 +36,7 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
     const deunaConfig: DeunaConfig = {
       apiKey: config?.apiKey || process.env.DEUNA_API_KEY || '',
       apiSecret: config?.apiSecret || process.env.DEUNA_API_SECRET || '',
-      pointOfSale: config?.pointOfSale || process.env.DEUNA_POINT_OF_SALE || '',
+      pointOfSale: config?.pointOfSale || process.env.DEUNA_PUNTO_DE_VENTA || process.env.DEUNA_POINT_OF_SALE || '',
       baseUrl:
         config?.baseUrl ||
         process.env.DEUNA_BASE_URL ||
@@ -203,7 +203,6 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
    * Nota: Deuna no provee firma HMAC en su documentación actual
    */
   validateWebhook(headers: Record<string, string>, body: any): boolean {
-    // Validar que tenga los campos requeridos
     const hasRequiredFields = !!(
       body.status &&
       body.idTransaction &&
@@ -215,10 +214,6 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
       console.warn('[DeunaStrategy] Webhook validation failed: missing required fields');
       return false;
     }
-
-    // TODO: Si Deuna implementa firma HMAC en el futuro, validarla aquí
-    // const signature = headers['x-deuna-signature'];
-    // return this.verifySignature(signature, body);
 
     return true;
   }
@@ -232,11 +227,9 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
       return false;
     }
 
-    
     const result = await this.client.refundPayment(internalReference, '1');
     
-    if (result) {
-    } else {
+    if (!result) {
       console.error(`[DeunaStrategy] ❌ Failed to cancel payment: ${internalReference}`);
     }
 
@@ -247,9 +240,6 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
   // PRIVATE HELPERS
   // ============================================
 
-  /**
-   * Genera una referencia interna única
-   */
   private generateInternalReference(metadata: any): string {
     const prefix = metadata.context === PaymentContext.WALLET_RECHARGE ? 'RCH' : 'CHG';
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -257,26 +247,20 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
     return `${prefix}${timestamp}${random}`.substring(0, 20);
   }
 
-  /**
-   * Obtiene configuración según el contexto de pago
-   */
   private getConfigForContext(request: CreatePaymentRequest) {
     if (request.metadata.context === PaymentContext.WALLET_RECHARGE) {
       return {
-        format: '2' as const, // QR + Link (cómodo para recargas)
-        defaultExpiration: 30, // 30 minutos
+        format: '2' as const,
+        defaultExpiration: 30,
       };
     } else {
       return {
-        format: '5' as const, // QR + Link + Numeric code (máxima flexibilidad)
-        defaultExpiration: 10, // 10 minutos (más urgente)
+        format: '5' as const,
+        defaultExpiration: 10,
       };
     }
   }
 
-  /**
-   * Mapea estados de Deuna a nuestros estados
-   */
   private mapDeunaStatus(deunaStatus: string): PaymentStatus {
     const statusMap: Record<string, PaymentStatus> = {
       SUCCESS: PaymentStatus.APPROVED,
