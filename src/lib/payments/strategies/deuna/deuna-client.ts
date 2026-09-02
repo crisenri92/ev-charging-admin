@@ -1,5 +1,3 @@
-import { PaymentGatewayConfig } from '../../types';
-
 export interface DeunaConfig {
   apiKey: string;
   apiSecret: string;
@@ -7,38 +5,47 @@ export interface DeunaConfig {
   pointOfSale: string;
 }
 
-export interface DeunaPaymentRequest {
+export interface DeunaCreatePaymentRequest {
   amount: number;
-  currency: string;
-  orderId: string;
-  description: string;
-  customerEmail: string;
-  customerName: string;
-  metadata?: Record<string, unknown>;
+  internalReference: string;
+  detail: string;
+  qrType: string;
+  format: string;
+  expiredTime: number;
+  callbackUrl?: string;
 }
 
-export interface DeunaPaymentResponse {
-  paymentId: string;
-  status: string;
-  checkoutUrl?: string;
-  redirectUrl?: string;
-  amount: number;
-  currency: string;
-  createdAt: string;
+export interface DeunaCreatePaymentResponse {
+  transactionId: string;
+  qr: string;
+  deeplink: string;
+  numericCode: string;
 }
 
-export interface DeunaWebhookPayload {
-  event: string;
-  paymentId: string;
-  orderId: string;
+export interface DeunaPaymentStatusResponse {
+  transactionId: string;
   status: string;
   amount: number;
-  currency: string;
-  metadata?: Record<string, unknown>;
+  date: string;
+  ordererName: string;
+  ordererIdentification: string;
+  transferNumber: string;
+  internalTransactionReference: string;
+  branchId: string;
+  posId: string;
 }
 
 export class DeunaClient {
   constructor(private config: DeunaConfig) {}
+
+  isConfigured(): boolean {
+    return !!(
+      this.config.apiKey &&
+      this.config.apiSecret &&
+      this.config.pointOfSale &&
+      this.config.baseUrl
+    );
+  }
 
   private async fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
     const controller = new AbortController();
@@ -63,7 +70,7 @@ export class DeunaClient {
     };
   }
 
-  async createPayment(request: DeunaPaymentRequest): Promise<DeunaPaymentResponse> {
+  async createPayment(request: DeunaCreatePaymentRequest): Promise<DeunaCreatePaymentResponse> {
     const response = await this.fetchWithTimeout(
       `${this.config.baseUrl}/merchant/v1/payment/request`,
       {
@@ -71,14 +78,12 @@ export class DeunaClient {
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           amount: request.amount,
-          currency: request.currency,
-          order_id: request.orderId,
-          description: request.description,
-          customer: {
-            email: request.customerEmail,
-            name: request.customerName,
-          },
-          metadata: request.metadata,
+          internalReference: request.internalReference,
+          detail: request.detail,
+          qrType: request.qrType,
+          format: request.format,
+          expiredTime: request.expiredTime,
+          callbackUrl: request.callbackUrl,
         }),
       }
     );
@@ -91,19 +96,16 @@ export class DeunaClient {
     const data = await response.json();
 
     return {
-      paymentId: data.payment_id || data.id,
-      status: data.status,
-      checkoutUrl: data.checkout_url,
-      redirectUrl: data.redirect_url,
-      amount: request.amount,
-      currency: request.currency,
-      createdAt: data.created_at || new Date().toISOString(),
+      transactionId: data.transactionId || data.transaction_id || data.id || '',
+      qr: data.qr || data.qrCode || data.qr_code || '',
+      deeplink: data.deeplink || data.deep_link || '',
+      numericCode: data.numericCode || data.numeric_code || '',
     };
   }
 
-  async getPaymentStatus(paymentId: string): Promise<DeunaPaymentResponse> {
+  async getPaymentStatus(internalReference: string, type: string): Promise<DeunaPaymentStatusResponse> {
     const response = await this.fetchWithTimeout(
-      `${this.config.baseUrl}/merchant/v1/payment/request/${paymentId}`,
+      `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}?type=${type}`,
       {
         method: 'GET',
         headers: this.getAuthHeaders(),
@@ -118,35 +120,35 @@ export class DeunaClient {
     const data = await response.json();
 
     return {
-      paymentId: data.payment_id || data.id,
-      status: data.status,
-      checkoutUrl: data.checkout_url,
-      redirectUrl: data.redirect_url,
-      amount: data.amount,
-      currency: data.currency,
-      createdAt: data.created_at,
+      transactionId: data.transactionId || data.transaction_id || data.id || '',
+      status: data.status || 'PENDING',
+      amount: data.amount || 0,
+      date: data.date || data.created_at || '',
+      ordererName: data.ordererName || data.orderer_name || '',
+      ordererIdentification: data.ordererIdentification || data.orderer_identification || '',
+      transferNumber: data.transferNumber || data.transfer_number || '',
+      internalTransactionReference: data.internalTransactionReference || data.internal_transaction_reference || internalReference,
+      branchId: data.branchId || data.branch_id || '',
+      posId: data.posId || data.pos_id || '',
     };
   }
 
-  async refundPayment(paymentId: string, amount?: number): Promise<{ success: boolean; refundId?: string }> {
-    const body: Record<string, unknown> = { payment_id: paymentId };
-    if (amount !== undefined) body.amount = amount;
-
+  async refundPayment(internalReference: string, type: string): Promise<boolean> {
     const response = await this.fetchWithTimeout(
-      `${this.config.baseUrl}/merchant/v1/payment/request/${paymentId}/refund`,
+      `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}/refund`,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ type }),
       }
     );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`DEUNA refund error: ${response.status} - ${JSON.stringify(error)}`);
+      console.error(`[DeunaClient] Refund error: ${response.status} - ${JSON.stringify(error)}`);
+      return false;
     }
 
-    const data = await response.json();
-    return { success: true, refundId: data.refund_id || data.id };
+    return true;
   }
 }
