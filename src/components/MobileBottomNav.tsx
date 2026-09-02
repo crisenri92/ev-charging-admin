@@ -46,7 +46,7 @@ const MOBILE_TABS = [
 
 const ADMIN_TABS = [
   {
-    href: '/',
+    href: '/dashboard',
     label: 'Dashboard',
     icon: (active: boolean) => (
       <svg viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" className="w-6 h-6">
