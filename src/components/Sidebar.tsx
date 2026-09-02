@@ -112,7 +112,7 @@ export default function Sidebar() {
             </svg>
             {loggingOut ? 'Saliendo...' : 'Cerrar sesión'}
           </button>
-          <p className="text-xs text-gray-700 mt-3 text-center">v1.0.0</p>
+          <p className="text-xs text-gray-700 mt-3 text-center">{process.env.NEXT_PUBLIC_APP_VERSION ?? 'v1.0.0'}</p>
         </div>
       </aside>
     </>
