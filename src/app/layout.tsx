@@ -8,13 +8,13 @@ import { ToastContainer } from '@/components/Toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'RECARGAT',
+  title: 'RecargaT',
   description: 'Recarga tu vehículo eléctrico fácil y rápido',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'RECARGAT',
+    title: 'RecargaT',
   },
 }
 
@@ -22,6 +22,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: 'cover',
   themeColor: '#111827',
 }
 
