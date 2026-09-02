@@ -10,10 +10,21 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 )
 
+function requireAuth(req: NextRequest): boolean {
+  const auth = req.headers.get('authorization') || ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : req.nextUrl.searchParams.get('secret')
+  return token === process.env.ADMIN_SECRET
+}
+
 export async function POST(req: NextRequest) {
+  if (!requireAuth(req)) {
+    return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
+  }
+
   try {
     const { userId, title, body, url = '/mobile' } = await req.json()
-    
+    if (!userId || !title) return NextResponse.json({ error: 'userId y title requeridos' }, { status: 400 })
+
     const { data: subs } = await supabase
       .from('push_subscriptions')
       .select('subscription')
@@ -29,7 +40,6 @@ export async function POST(req: NextRequest) {
         await webpush.sendNotification(row.subscription, payload)
         sent++
       } catch (e: any) {
-        // Remove invalid subscriptions
         if (e.statusCode === 410 || e.statusCode === 404) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', row.subscription.endpoint)
         }
