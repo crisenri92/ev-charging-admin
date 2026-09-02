@@ -46,7 +46,6 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
     this.client = new DeunaClient(deunaConfig);
 
     if (this.isConfigured()) {
-      console.log('[DeunaStrategy] ✅ Initialized successfully');
     } else {
       console.warn('[DeunaStrategy] ⚠️  Missing configuration. Check environment variables.');
     }
@@ -233,12 +232,10 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
       return false;
     }
 
-    console.log(`[DeunaStrategy] Cancelling payment ${internalReference}`, { reason });
     
     const result = await this.client.refundPayment(internalReference, '1');
     
     if (result) {
-      console.log(`[DeunaStrategy] ✅ Payment cancelled: ${internalReference}`);
     } else {
       console.error(`[DeunaStrategy] ❌ Failed to cancel payment: ${internalReference}`);
     }
