@@ -41,7 +41,7 @@ const TagIcon = () => (
   </svg>
 )
 const navItems = [
-  { href: '/', label: 'Dashboard', Icon: BoltIcon },
+  { href: '/dashboard', label: 'Dashboard', Icon: BoltIcon },
   { href: '/chargers', label: 'Cargadores', Icon: PlugIcon },
   { href: '/sessions', label: 'Sesiones', Icon: ClipboardIcon },
   { href: '/users', label: 'Usuarios', Icon: UserIcon },

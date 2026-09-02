@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 // Paths accessible to mobile users (Supabase Auth) without admin_token
 const MOBILE_PATHS = ['/mobile', '/wallet']
 // Unauthenticated public pages
-const PUBLIC_PATHS = ['/login', '/forgot-password']
+const PUBLIC_PATHS = ['/', '/login', '/forgot-password']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
