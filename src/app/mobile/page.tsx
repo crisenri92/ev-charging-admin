@@ -164,6 +164,13 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
               {dynamicPrice && !isReservedByOther && <span className="text-xs text-green-700">· ${dynamicPrice.price.toFixed(2)}/kWh</span>}
             </div>
             {charger.address && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[180px]">{charger.address}</p>}
+            {charger.latitude && charger.longitude && (
+              <a href={`https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-400 mt-0.5 hover:text-blue-300 active:opacity-70">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Cómo llegar
+              </a>
+            )}
             {isReservedByMe && <p className="text-xs text-blue-400 mt-0.5">Tu reserva activa</p>}
           </div>
         </div>
@@ -376,8 +383,9 @@ function MobileContent() {
   }
 
   const qrCharger = qrConfirm ? chargers.find(c => c.id === qrConfirm) : null
-  const available = chargers.filter(c => (c.status || '').toLowerCase() === 'available')
-  const unavailable = chargers.filter(c => (c.status || '').toLowerCase() !== 'available')
+  const filtered = searchQuery ? chargers.filter(c => (c.name || c.id).toLowerCase().includes(searchQuery.toLowerCase()) || (c.address || '').toLowerCase().includes(searchQuery.toLowerCase())) : chargers
+      const available = filtered.filter(c => (c.status || '').toLowerCase() === 'available')
+  const unavailable = filtered.filter(c => (c.status || '').toLowerCase() !== 'available')
   const mappableChargers = chargers.filter(c => c.latitude && c.longitude)
     .map(c => ({ id: c.id, name: c.name, status: c.status || 'unknown', location: c.address, lat: c.latitude!, lng: c.longitude! }))
 
