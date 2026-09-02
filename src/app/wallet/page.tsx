@@ -1,9 +1,8 @@
 'use client'
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { MobileToast } from '@/components/MobileToast'
-
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
 
@@ -16,14 +15,28 @@ interface Transaction {
   created_at: string
 }
 
+interface PendingPayment {
+  id: string
+  paymentId: string
+  amount: number
+  qrCode?: string
+  deeplink?: string
+  numericCode?: string
+  expiresAt?: string
+}
+
 function WalletContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [balance, setBalance] = useState<number | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [recharging, setRecharging] = useState(false)
+  const [waitingPayment, setWaitingPayment] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
+  const cancelledRef = useRef(false)
 
   useEffect(() => {
     if (searchParams.get('recharge') === 'success') {
@@ -53,15 +66,80 @@ function WalletContent() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const pollPayment = async (paymentId: string, token: string) => {
+    setWaitingPayment(true)
+    try {
+      const pollRes = await fetch('/api/payments/poll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ paymentId }),
+      })
+      const pollData = await pollRes.json()
+      if (cancelledRef.current) return
+
+      if (pollData.status === 'approved') {
+        setPendingPayment(null)
+        setToast({ msg: '✅ Recarga confirmada. Tu saldo fue actualizado.', type: 'success' })
+        loadData()
+        return
+      }
+
+      if (pollData.status === 'failed' || pollData.status === 'expired') {
+        setToast({ msg: 'El pago expiró o falló. Intenta de nuevo.', type: 'error' })
+        return
+      }
+
+      setToast({ msg: 'Aún no se confirma el pago. Puedes seguir esperando.', type: 'info' })
+    } catch {
+      if (!cancelledRef.current) {
+        setToast({ msg: 'No se pudo consultar el pago. Intenta de nuevo.', type: 'error' })
+      }
+    } finally {
+      setWaitingPayment(false)
+    }
+  }
+
   const handleRecharge = async (amount: number) => {
-    if (amount < 1) return
-    // Pagos temporalmente deshabilitados mientras se integra el proveedor de pagos
-    setToast({ msg: '🔧 Recargas en mantenimiento. Pronto podrás recargar desde la app.', type: 'info' })
+    if (recharging || waitingPayment || amount < 1) return
+    cancelledRef.current = false
+    setRecharging(true)
+    try {
+      const token = await getToken()
+      if (!token) { router.push('/mobile/login'); return }
+      const res = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          provider: 'deuna',
+          context: 'wallet_recharge',
+          amount,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setToast({ msg: data.error || 'No se pudo crear el pago', type: 'error' })
+        return
+      }
+
+      const payment = data.payment as PendingPayment
+      setPendingPayment(payment)
+      pollPayment(payment.paymentId, token)
+    } catch {
+      setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' })
+    } finally {
+      setRecharging(false)
+    }
+  }
+
+  const closePaymentModal = () => {
+    cancelledRef.current = true
+    setPendingPayment(null)
+    setWaitingPayment(false)
   }
 
   function txIcon(type: string, amount: number) {
     if (type === 'voucher') return '🎁'
-    if (type === 'balance_recharge' || type === 'topup' || amount > 0) return '💳'
+    if (type === 'balance_recharge' || type === 'topup' || type === 'recharge' || amount > 0) return '💳'
     if (type === 'charge' || type === 'charge_deduction') return '⚡'
     return '💸'
   }
@@ -77,6 +155,7 @@ function WalletContent() {
   const [voucherCode, setVoucherCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const customAmt = parseFloat(customAmount)
+  const busy = recharging || waitingPayment
 
   async function redeemVoucher() {
     if (!voucherCode.trim() || redeeming) return
@@ -102,7 +181,74 @@ function WalletContent() {
     <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 
-      {/* Balance Card */}
+      {pendingPayment && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
+              <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            {pendingPayment.qrCode && (
+              <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
+                <img
+                  src={pendingPayment.qrCode}
+                  alt="QR de pago Deuna"
+                  className="w-56 h-56 object-contain"
+                />
+              </div>
+            )}
+
+            {pendingPayment.deeplink && (
+              <a
+                href={pendingPayment.deeplink}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-center bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-xl mb-3"
+              >
+                Abrir en Deuna
+              </a>
+            )}
+
+            {pendingPayment.numericCode && (
+              <p className="text-center text-gray-300 text-sm mb-3">
+                Código: <span className="font-mono text-white text-lg">{pendingPayment.numericCode}</span>
+              </p>
+            )}
+
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-4">
+              {waitingPayment && (
+                <div className="h-4 w-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+              )}
+              {waitingPayment
+                ? 'Esperando confirmación de pago…'
+                : 'Si ya pagaste, vuelve a consultar'}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={closePaymentModal}
+                className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={waitingPayment}
+                onClick={async () => {
+                  const token = await getToken()
+                  if (!token || !pendingPayment) return
+                  cancelledRef.current = false
+                  pollPayment(pendingPayment.paymentId, token)
+                }}
+                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-40"
+              >
+                {waitingPayment ? 'Consultando…' : 'Ya pagué'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative overflow-hidden px-4 pt-10 pb-8">
         <div className="absolute inset-0 bg-gradient-to-br from-green-700/40 via-green-800/20 to-transparent" />
         <div className="relative text-center">
@@ -118,12 +264,12 @@ function WalletContent() {
         </div>
       </div>
 
-      {/* Recharge section */}
       <div className="px-4 mb-6">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
         <div className="grid grid-cols-4 gap-2 mb-3">
           {QUICK_AMOUNTS.map(amt => (
-            <button key={amt} onClick={() => handleRecharge(amt)} className="bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
+            <button key={amt} onClick={() => handleRecharge(amt)} disabled={busy}
+              className="bg-gray-800 hover:bg-gray-700 active:scale-95 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
               ${amt}
             </button>
           ))}
@@ -145,14 +291,13 @@ function WalletContent() {
           </div>
           <button
             onClick={() => handleRecharge(customAmt)}
-            disabled={!customAmount || customAmt < 1}
+            disabled={busy || !customAmount || customAmt < 1}
             className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
-            Recargar
+            {recharging ? '...' : 'Recargar'}
           </button>
         </div>
       </div>
 
-      {/* Voucher section */}
       <div className="px-4 mb-6">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
         <div className="flex gap-2">
@@ -173,7 +318,6 @@ function WalletContent() {
         </div>
       </div>
 
-      {/* Transaction history */}
       <div className="px-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Movimientos recientes</p>
         {loading
