@@ -498,7 +498,7 @@ function MobileContent() {
       {/* List view */}
       {activeSession && <ActiveSessionBanner session={activeSession} />}
 
-      {!mapView && (
+      {!mapView && (<>
         <div className="px-4 mb-3" role="search">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -557,7 +557,7 @@ function MobileContent() {
             </div>
           )}
         </div>
-      )}
+      </>)}
     </div>
   )
 }
