@@ -22,7 +22,6 @@ function WalletContent() {
   const [balance, setBalance] = useState<number | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [recharging, setRecharging] = useState(false)
   const [customAmount, setCustomAmount] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
 
@@ -55,24 +54,9 @@ function WalletContent() {
   useEffect(() => { loadData() }, [loadData])
 
   const handleRecharge = async (amount: number) => {
-    if (recharging || amount < 1) return
-    setRecharging(true)
-    try {
-      const token = await getToken()
-      if (!token) { router.push('/mobile/login'); return }
-      const res = await fetch('/api/payment/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ amount }),
-      })
-      const { checkoutUrl, error } = await res.json()
-      if (error) { setToast({ msg: error, type: 'error' }); return }
-      window.location.href = checkoutUrl
-    } catch {
-      setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' })
-    } finally {
-      setRecharging(false)
-    }
+    if (amount < 1) return
+    // Pagos temporalmente deshabilitados mientras se integra el proveedor de pagos
+    setToast({ msg: '🔧 Recargas en mantenimiento. Pronto podrás recargar desde la app.', type: 'info' })
   }
 
   function txIcon(type: string, amount: number) {
@@ -139,8 +123,7 @@ function WalletContent() {
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
         <div className="grid grid-cols-4 gap-2 mb-3">
           {QUICK_AMOUNTS.map(amt => (
-            <button key={amt} onClick={() => handleRecharge(amt)} disabled={recharging}
-              className="bg-gray-800 hover:bg-gray-700 active:scale-95 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
+            <button key={amt} onClick={() => handleRecharge(amt)} className="bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
               ${amt}
             </button>
           ))}
@@ -162,9 +145,9 @@ function WalletContent() {
           </div>
           <button
             onClick={() => handleRecharge(customAmt)}
-            disabled={recharging || !customAmount || customAmt < 1}
+            disabled={!customAmount || customAmt < 1}
             className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
-            {recharging ? '...' : 'Recargar'}
+            Recargar
           </button>
         </div>
       </div>
