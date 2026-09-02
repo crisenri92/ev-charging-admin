@@ -56,7 +56,7 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h2 className="text-lg font-semibold text-white">Editar Cargador</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -374,7 +374,7 @@ export default function ChargersPage() {
                   </td>
                   <td className="px-4 py-3.5 text-xs text-gray-500">{c.firmware ?? <span className="text-gray-600">—</span>}</td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center flex-wrap gap-1.5">
                       <button onClick={() => setEditTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md border border-gray-700 transition-colors">Editar</button>
                       <button onClick={() => setQrTarget(c)} className="text-xs px-2.5 py-1 bg-purple-800 hover:bg-purple-700 text-white rounded-md border border-purple-700 transition-colors">QR</button>
                       <button onClick={() => setLocationTarget(c)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors">
