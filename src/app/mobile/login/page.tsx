@@ -1,5 +1,8 @@
 'use client'
 import { useState, Suspense } from 'react'
+import { Outfit } from 'next/font/google'
+
+const outfit = Outfit({ subsets: ['latin'], weight: ['700', '900'] })
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -45,7 +48,7 @@ function LoginForm() {
             <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.268a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-white">RECARGAT</h1>
+        <h1 className={`text-3xl font-black text-white tracking-tight ${outfit.className}`}>Recarga<span className="text-green-400">T</span></h1>
         <p className="text-gray-400 text-sm mt-1">Bienvenido de vuelta</p>
       </div>
 
