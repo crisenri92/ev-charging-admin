@@ -270,6 +270,7 @@ function MobileContent() {
   const [reservingCharger, setReservingCharger] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<{charger_id: string; charger_name: string; started_at: string} | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
 
   const fetchReservations = useCallback(async (token: string) => {
     const r = await fetch('/api/reservations', { headers: { Authorization: `Bearer ${token}` } })
@@ -383,7 +384,11 @@ function MobileContent() {
   }
 
   const qrCharger = qrConfirm ? chargers.find(c => c.id === qrConfirm) : null
-  const filtered = searchQuery ? chargers.filter(c => (c.name || c.id).toLowerCase().includes(searchQuery.toLowerCase()) || (c.address || '').toLowerCase().includes(searchQuery.toLowerCase())) : chargers
+  const filtered = chargers.filter(c => {
+        const matchesSearch = !searchQuery || (c.name || c.id).toLowerCase().includes(searchQuery.toLowerCase()) || (c.address || '').toLowerCase().includes(searchQuery.toLowerCase())
+        const matchesFilter = !showOnlyAvailable || (c.status || '').toLowerCase() === 'available'
+        return matchesSearch && matchesFilter
+      })
       const available = filtered.filter(c => (c.status || '').toLowerCase() === 'available')
   const unavailable = filtered.filter(c => (c.status || '').toLowerCase() !== 'available')
   const mappableChargers = chargers.filter(c => c.latitude && c.longitude)
