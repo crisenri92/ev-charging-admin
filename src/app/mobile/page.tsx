@@ -220,7 +220,7 @@ function MobileContent() {
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
   const [user, setUser] = useState<any>(null)
-  const [mapView, setMapView] = useState(false)
+  const [mapView, setMapView] = useState(true)
   const [currentPricing, setCurrentPricing] = useState<{ price: number; ruleName: string } | null>(null)
   const [myReservations, setMyReservations] = useState<Reservation[]>([])
   const [chargerReservations, setChargerReservations] = useState<Record<string, boolean>>({})
@@ -403,9 +403,9 @@ function MobileContent() {
 
       {/* Map view */}
       {mapView && (
-        <div className="px-4 mb-4">
+        <div className="mb-0">
           {mappableChargers.length > 0 ? (
-            <div className="rounded-2xl overflow-hidden border border-gray-800">
+            <div className="rounded-none overflow-hidden" style={{height:'calc(100vh - 130px - 64px)',minHeight:320}}>
               <Suspense fallback={<div className="h-72 bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-2 border-green-400 border-t-transparent" /></div>}>
                 <ChargerMap chargers={mappableChargers} />
               </Suspense>
