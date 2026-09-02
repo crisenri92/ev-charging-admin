@@ -43,10 +43,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Payment Poll] Starting Deuna poll', {
-      paymentId,
-      userId: user.id,
-    });
 
     const result = await pollPaymentUseCase.run({
       userId: user.id,
