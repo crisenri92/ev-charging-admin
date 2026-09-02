@@ -21,7 +21,7 @@ export default function LandingPage() {
         >
           {/* Video de carga de vehículos eléctricos — reemplaza src si quieres otro */}
           <source
-            src="https://videos.pexels.com/video-files/6667056/6667056-hd_1280_720_25fps.mp4"
+            src="https://videos.pexels.com/video-files/3571264/3571264-hd_1280_720_30fps.mp4"
             type="video/mp4"
           />
         </video>
