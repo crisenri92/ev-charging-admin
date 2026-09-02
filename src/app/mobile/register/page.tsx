@@ -2,12 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 const ERROR_MAP: Record<string, string> = {
   'User already registered': 'Ya existe una cuenta con ese email',
@@ -15,6 +10,19 @@ const ERROR_MAP: Record<string, string> = {
   'Password should be at least 6 characters': 'La contraseña debe tener al menos 6 caracteres',
   'Unable to validate email address: invalid format': 'Email inválido',
 }
+
+const EyeIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+)
+
+const EyeOffIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+)
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -33,7 +41,6 @@ export default function RegisterPage() {
     if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
 
-    // 1. Create account via admin API (no email confirmation required)
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,10 +55,8 @@ export default function RegisterPage() {
       return
     }
 
-    // 2. Sign in immediately (user is already confirmed)
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
     if (signInError) {
-      // Account created but auto-login failed — send to login page
       setError('Cuenta creada. Inicia sesión con tu email y contraseña.')
       setLoading(false)
       router.push('/mobile/login')
@@ -62,7 +67,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-5 py-10" style={{ background: '#0f172a' }}>
+    <div className="min-h-screen flex items-center justify-center px-5 py-10 bg-slate-950">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-green-600 mb-4 shadow-lg shadow-green-900/40">
@@ -89,8 +94,7 @@ export default function RegisterPage() {
               onChange={e => setName(e.target.value)}
               required
               placeholder="Tu nombre"
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-green-500 transition"
-              style={{ background: '#1e293b', border: '1px solid #334155' }}
+              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 bg-slate-800 border border-slate-700 outline-none focus:ring-2 focus:ring-green-500 transition"
             />
           </div>
 
@@ -98,12 +102,12 @@ export default function RegisterPage() {
             <label className="block text-slate-300 text-sm font-medium mb-1.5">Email</label>
             <input
               type="email"
+              inputMode="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
               placeholder="tu@email.com"
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-green-500 transition"
-              style={{ background: '#1e293b', border: '1px solid #334155' }}
+              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 bg-slate-800 border border-slate-700 outline-none focus:ring-2 focus:ring-green-500 transition"
             />
           </div>
 
@@ -116,12 +120,14 @@ export default function RegisterPage() {
                 onChange={e => setPassword(e.target.value)}
                 required
                 placeholder="Mínimo 6 caracteres"
-                className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-green-500 transition"
-                style={{ background: '#1e293b', border: '1px solid #334155' }}
+                className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-slate-500 bg-slate-800 border border-slate-700 outline-none focus:ring-2 focus:ring-green-500 transition"
               />
-              <button type="button" onClick={() => setShowPwd(v => !v)}
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition">
-                {showPwd ? '🙈' : '👁️'}
+                {showPwd ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
           </div>
@@ -134,16 +140,14 @@ export default function RegisterPage() {
               onChange={e => setConfirmPwd(e.target.value)}
               required
               placeholder="Repite tu contraseña"
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-green-500 transition"
-              style={{ background: '#1e293b', border: '1px solid #334155' }}
+              className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 bg-slate-800 border border-slate-700 outline-none focus:ring-2 focus:ring-green-500 transition"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl font-semibold text-white transition-all"
-            style={{ background: loading ? '#166534' : '#16a34a' }}
+            className="w-full py-3.5 rounded-xl font-semibold text-white bg-green-600 hover:bg-green-500 disabled:opacity-60 transition-all"
           >
             {loading ? 'Creando cuenta...' : 'Crear cuenta'}
           </button>

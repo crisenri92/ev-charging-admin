@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Sidebar from '@/components/Sidebar'
 
 interface Voucher {
   id: string
@@ -79,6 +78,7 @@ export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<Partial<Voucher> | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => { fetchVouchers() }, [])
 
@@ -98,8 +98,8 @@ export default function VouchersPage() {
   }
 
   async function deleteVoucher(id: string) {
-    if (!confirm('¿Eliminar este voucher?')) return
     await fetch('/api/vouchers', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    setDeleteTarget(null)
     fetchVouchers()
   }
 
@@ -109,10 +109,8 @@ export default function VouchersPage() {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0b1120' }}>
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-8 ml-0 md:ml-56">
-        <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto">
+        <div>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-white">Vouchers</h1>
@@ -157,7 +155,7 @@ export default function VouchersPage() {
                       </button>
                       <button onClick={() => setModal(v)}
                         className="text-xs px-2.5 py-1 rounded-lg bg-gray-800 text-gray-400">Editar</button>
-                      <button onClick={() => deleteVoucher(v.id)}
+                      <button onClick={() => setDeleteTarget(v.id)}
                         className="text-xs px-2.5 py-1 rounded-lg bg-red-900/30 text-red-400">Eliminar</button>
                     </div>
                   </div>
@@ -172,8 +170,19 @@ export default function VouchersPage() {
             </div>
           )}
         </div>
-      </main>
       {modal !== null && <VoucherModal v={modal} onSave={saveVoucher} onClose={() => setModal(null)} />}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="text-lg font-semibold text-white mb-2">¿Eliminar voucher?</h2>
+            <p className="text-sm text-gray-400 mb-6">Esta acción no se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
+              <button onClick={() => deleteVoucher(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     setError('')
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://ev-charging-admin-production.up.railway.app/mobile/reset-password',
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/mobile/reset-password`,
     })
     if (error) { setError(error.message); setLoading(false); return }
     setSent(true)

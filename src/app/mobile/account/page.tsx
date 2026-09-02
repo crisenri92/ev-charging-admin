@@ -37,7 +37,7 @@ export default function AccountPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#111827' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
       <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" />
     </div>
   )
@@ -46,7 +46,7 @@ export default function AccountPage() {
   const memberSince = user?.created_at ? new Date(user.created_at).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }) : ''
 
   return (
-    <div className="min-h-screen text-white pb-24 px-4 pt-6" style={{ background: '#111827' }}>
+    <div className="min-h-screen text-white pb-24 px-4 pt-6" style={{ background: '#0f172a' }}>
       <h1 className="text-xl font-bold mb-6">Mi Cuenta</h1>
 
       {/* Avatar */}

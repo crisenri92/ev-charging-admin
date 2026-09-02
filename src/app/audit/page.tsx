@@ -36,43 +36,43 @@ export default function AuditPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Registro de auditoría</h1>
+        <h1 className="text-2xl font-bold text-white">Registro de auditoría</h1>
         <span className="text-sm text-gray-500">{logs.length} eventos</span>
       </div>
 
       {loading && <div className="text-center py-10 text-gray-400">Cargando...</div>}
 
       {!loading && logs.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-10 text-center text-gray-400">
           No hay eventos registrados aún
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-950 border-b border-gray-800">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Acción</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Detalles</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Por</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-400">Acción</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-400">Detalles</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-400">Por</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-400">Fecha</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-800">
             {logs.map(log => (
-              <tr key={log.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">
+              <tr key={log.id} className="hover:bg-gray-800/30 transition-colors">
+                <td className="px-4 py-3 font-medium text-white">
                   {ACTION_LABELS[log.action] || log.action}
                 </td>
-                <td className="px-4 py-3 text-gray-600 max-w-xs">
+                <td className="px-4 py-3 text-gray-400 max-w-xs">
                   {log.details ? (
-                    <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">
+                    <span className="font-mono text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-300">
                       {JSON.stringify(log.details).slice(0, 80)}
                     </span>
                   ) : '—'}
                 </td>
-                <td className="px-4 py-3 text-gray-500">{log.performed_by || '—'}</td>
-                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(log.created_at)}</td>
+                <td className="px-4 py-3 text-gray-400">{log.performed_by || '—'}</td>
+                <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(log.created_at)}</td>
               </tr>
             ))}
           </tbody>

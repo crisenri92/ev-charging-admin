@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Sidebar from '@/components/Sidebar'
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
@@ -108,6 +107,7 @@ export default function PricingPage() {
   const [modal, setModal] = useState<Partial<PricingRule> | null>(null)
   const [currentPrice, setCurrentPrice] = useState<{ price: number; ruleName: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => { fetchRules(); fetchCurrent() }, [])
 
@@ -136,8 +136,8 @@ export default function PricingPage() {
   }
 
   async function deleteRule(id: string) {
-    if (!confirm('¿Eliminar esta regla?')) return
     await fetch('/api/pricing/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    setDeleteTarget(null)
     fetchRules()
   }
 
@@ -151,10 +151,8 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0b1120' }}>
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-8 ml-0 md:ml-56">
-        <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto">
+        <div>
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -209,7 +207,7 @@ export default function PricingPage() {
                       </button>
                       <button onClick={() => setModal(rule)}
                         className="text-xs px-2.5 py-1 rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">Editar</button>
-                      <button onClick={() => deleteRule(rule.id)}
+                      <button onClick={() => setDeleteTarget(rule.id)}
                         className="text-xs px-2.5 py-1 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors">Eliminar</button>
                     </div>
                   </div>
@@ -222,8 +220,19 @@ export default function PricingPage() {
             Las reglas con mayor prioridad prevalecen. Si un horario no tiene regla activa se usa la tarifa base.
           </p>
         </div>
-      </main>
       {modal !== null && <RuleModal rule={modal} onSave={saveRule} onClose={() => setModal(null)} />}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="text-lg font-semibold text-white mb-2">¿Eliminar regla?</h2>
+            <p className="text-sm text-gray-400 mb-6">Esta acción no se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
+              <button onClick={() => deleteRule(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

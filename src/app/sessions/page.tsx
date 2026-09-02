@@ -3,6 +3,15 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+async function downloadCSV(endpoint: string, filename: string) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${session?.access_token}` } })
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 interface Session {
   id: string
   charger_id: string | null
@@ -86,8 +95,8 @@ export default function SessionsPage() {
             <p className="mt-1 text-sm text-gray-400">Historial de sesiones registradas</p>
           </div>
           <div className="flex gap-2">
-            <a href="/api/admin/export/sessions" className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</a>
-            <a href="/api/admin/export/payments" className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</a>
+            <button onClick={() => downloadCSV('/api/admin/export/sessions', 'sesiones.csv')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</button>
+            <button onClick={() => downloadCSV('/api/admin/export/payments', 'pagos.csv')} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</button>
           </div>
         </div>
       </div>
