@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MobileToast } from '@/components/MobileToast'
 
-const ChargerMap = lazy(() => import('@/components/ChargerMap'))
+const ChargerMap = lazy(() => import('@/componnts/ChargerMap'))
 const PWAInstallBanner = lazy(() => import('@/components/PWAInstallBanner'))
 
 interface Charger {
