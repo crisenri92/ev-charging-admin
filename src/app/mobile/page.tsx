@@ -192,6 +192,41 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
   )
 }
 
+
+function ActiveSessionBanner({ session }: { session: { charger_id: string; charger_name: string; started_at: string } }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const tick = () => setElapsed(Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000))
+    tick()
+    const iv = setInterval(tick, 1000)
+    return () => clearInterval(iv)
+  }, [session.started_at])
+  const h = Math.floor(elapsed / 3600)
+  const m = Math.floor((elapsed % 3600) / 60)
+  const s = elapsed % 60
+  return (
+    <div className="mx-4 mb-3 bg-green-900/20 border border-green-700/40 rounded-2xl p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-900/40 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-green-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.268a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" /></svg>
+          </div>
+          <div>
+            <p className="text-green-400 text-xs font-semibold uppercase tracking-wide">Cargando ahora</p>
+            <p className="text-white text-sm font-medium mt-0.5">{session.charger_name}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-white font-mono text-xl font-bold">
+            {h > 0 ? `${h}:` : ''}{String(m).padStart(2,'0')}:{String(s).padStart(2,'0')}
+          </p>
+          <p className="text-gray-500 text-xs">activo</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MapToggle({ mapView, onToggle }: { mapView: boolean; onToggle: () => void }) {
   return (
     <div className="flex bg-gray-800 rounded-xl p-1 gap-1">
@@ -226,6 +261,8 @@ function MobileContent() {
   const [chargerReservations, setChargerReservations] = useState<Record<string, boolean>>({})
   const [reserveModal, setReserveModal] = useState<Charger | null>(null)
   const [reservingCharger, setReservingCharger] = useState<string | null>(null)
+  const [activeSession, setActiveSession] = useState<{charger_id: string; charger_name: string; started_at: string} | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchReservations = useCallback(async (token: string) => {
     const r = await fetch('/api/reservations', { headers: { Authorization: `Bearer ${token}` } })
@@ -242,6 +279,9 @@ function MobileContent() {
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
       fetchReservations(session.access_token)
+          supabase.from('charging_sessions').select('charger_id, started_at, chargers(name)').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
+            if (data) setActiveSession({ charger_id: data.charger_id, charger_name: (data.chargers as any)?.name || data.charger_id, started_at: data.started_at || new Date().toISOString() })
+          })
     })
     fetchChargers()
     fetch('/api/pricing').then(r => r.json()).then(d => setCurrentPricing(d)).catch(() => {})
