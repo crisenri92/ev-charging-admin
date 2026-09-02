@@ -1,7 +1,7 @@
 /**
- * Deuna Payment Strategy
- * Implementación de la estrategia de pago para Deuna
- */
+* Deuna Payment Strategy
+* Implementación de la estrategia de pago para Deuna
+*/
 
 import { IPaymentStrategy } from '../../core/payment-strategy.interface';
 import {
@@ -33,21 +33,25 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
    * Inicializa la estrategia con configuración de Deuna
    */
   initialize(config?: Record<string, any>): void {
-    const deunaConfig: DeunaConfig = {
-      apiKey: config?.apiKey || process.env.DEUNA_API_KEY || '',
-      apiSecret: config?.apiSecret || process.env.DEUNA_API_SECRET || '',
-      pointOfSale: config?.pointOfSale || process.env.DEUNA_PUNTO_DE_VENTA || process.env.DEUNA_POINT_OF_SALE || '',
-      baseUrl:
-        config?.baseUrl ||
-        process.env.DEUNA_BASE_URL ||
-        'https://apis-merchant.pdn.deunalab.com',
-    };
+    const apiKey = config?.apiKey || process.env.DEUNA_API_KEY || '';
+    const apiSecret = config?.apiSecret || process.env.DEUNA_API_SECRET || '';
+    const pointOfSale = config?.pointOfSale || process.env.DEUNA_PUNTO_DE_VENTA || process.env.DEUNA_POINT_OF_SALE || '';
+    const baseUrl = config?.baseUrl || process.env.DEUNA_BASE_URL || 'https://apis-merchant.pdn.deunalab.com';
+
+    console.log('[DeunaStrategy] initialize() called');
+    console.log('[DeunaStrategy] DEUNA_API_KEY present:', !!process.env.DEUNA_API_KEY, 'length:', (process.env.DEUNA_API_KEY || '').length, 'prefix:', (process.env.DEUNA_API_KEY || '').substring(0, 8));
+    console.log('[DeunaStrategy] DEUNA_BASE_URL:', baseUrl);
+    console.log('[DeunaStrategy] DEUNA_PUNTO_DE_VENTA:', pointOfSale);
+    console.log('[DeunaStrategy] apiKey resolved - present:', !!apiKey, 'length:', apiKey.length);
+
+    const deunaConfig: DeunaConfig = { apiKey, apiSecret, baseUrl, pointOfSale };
 
     this.client = new DeunaClient(deunaConfig);
 
     if (this.isConfigured()) {
+      console.log('[DeunaStrategy] ✅ Configured successfully');
     } else {
-      console.warn('[DeunaStrategy] ⚠️  Missing configuration. Check environment variables.');
+      console.warn('[DeunaStrategy] ⚠️ Missing configuration. Check environment variables.');
     }
   }
 
@@ -112,7 +116,7 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
       };
     } catch (error: any) {
       console.error('[DeunaStrategy] Create payment error:', error);
-      
+
       return {
         success: false,
         paymentId: '',
@@ -200,7 +204,6 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
 
   /**
    * Valida la autenticidad de un webhook de Deuna
-   * Nota: Deuna no provee firma HMAC en su documentación actual
    */
   validateWebhook(headers: Record<string, string>, body: any): boolean {
     const hasRequiredFields = !!(
@@ -228,7 +231,7 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
     }
 
     const result = await this.client.refundPayment(internalReference, '1');
-    
+
     if (!result) {
       console.error(`[DeunaStrategy] ❌ Failed to cancel payment: ${internalReference}`);
     }
