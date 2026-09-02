@@ -62,39 +62,36 @@ export class DeunaClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    console.log('[DeunaClient] Auth check - apiKey present:', !!this.config.apiKey, 'length:', this.config.apiKey?.length, 'prefix:', this.config.apiKey?.substring(0, 6));
     return {
-      'Ocp-Apim-Subscription-Key': this.config.apiKey,
+      'x-api-key': this.config.apiKey,
+      'x-api-secret': this.config.apiSecret,
       'Content-Type': 'application/json',
-      'X-Point-Of-Sale': this.config.pointOfSale,
     };
   }
 
-  private buildUrl(path: string): string {
-    // Pass subscription key as query param too (Azure APIM accepts header OR query param)
-    const base = `${this.config.baseUrl}${path}`;
-    const separator = base.includes('?') ? '&' : '?';
-    return `${base}${separator}subscription-key=${this.config.apiKey}`;
-  }
-
   async createPayment(request: DeunaCreatePaymentRequest): Promise<DeunaCreatePaymentResponse> {
-    const url = this.buildUrl('/merchant/v1/payment/request');
-    console.log('[DeunaClient] POST', url.replace(this.config.apiKey, '***'));
+    const url = `${this.config.baseUrl}/merchant/v1/payment/request`;
+    console.log('[DeunaClient] POST', url);
+
+    const body = {
+      pointOfSale: this.config.pointOfSale,
+      amount: request.amount,
+      internalTransactionReference: request.internalReference,
+      detail: request.detail,
+      qrType: request.qrType,
+      format: request.format,
+      ...(request.expiredTime ? { expiredTime: request.expiredTime } : {}),
+      ...(request.callbackUrl ? { callbackUrl: request.callbackUrl } : {}),
+    };
+
+    console.log('[DeunaClient] Request body:', JSON.stringify(body));
 
     const response = await this.fetchWithTimeout(
       url,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          amount: request.amount,
-          internalReference: request.internalReference,
-          detail: request.detail,
-          qrType: request.qrType,
-          format: request.format,
-          expiredTime: request.expiredTime,
-          callbackUrl: request.callbackUrl,
-        }),
+        body: JSON.stringify(body),
       }
     );
 
@@ -105,6 +102,7 @@ export class DeunaClient {
     }
 
     const data = await response.json();
+    console.log('[DeunaClient] Success response:', JSON.stringify(data));
 
     return {
       transactionId: data.transactionId || data.transaction_id || data.id || '',
@@ -115,7 +113,7 @@ export class DeunaClient {
   }
 
   async getPaymentStatus(internalReference: string, type: string): Promise<DeunaPaymentStatusResponse> {
-    const url = this.buildUrl(`/merchant/v1/payment/request/${internalReference}?type=${type}`);
+    const url = `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}?type=${type}`;
     console.log('[DeunaClient] GET status', internalReference);
 
     const response = await this.fetchWithTimeout(
@@ -149,7 +147,7 @@ export class DeunaClient {
   }
 
   async refundPayment(internalReference: string, type: string): Promise<boolean> {
-    const url = this.buildUrl(`/merchant/v1/payment/request/${internalReference}/refund`);
+    const url = `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}/refund`;
 
     const response = await this.fetchWithTimeout(
       url,
