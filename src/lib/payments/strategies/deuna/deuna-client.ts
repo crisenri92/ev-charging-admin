@@ -62,6 +62,7 @@ export class DeunaClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
+    console.log('[DeunaClient] Auth check - apiKey present:', !!this.config.apiKey, 'length:', this.config.apiKey?.length, 'prefix:', this.config.apiKey?.substring(0, 6));
     return {
       'Ocp-Apim-Subscription-Key': this.config.apiKey,
       'Content-Type': 'application/json',
@@ -69,9 +70,19 @@ export class DeunaClient {
     };
   }
 
+  private buildUrl(path: string): string {
+    // Pass subscription key as query param too (Azure APIM accepts header OR query param)
+    const base = `${this.config.baseUrl}${path}`;
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}subscription-key=${this.config.apiKey}`;
+  }
+
   async createPayment(request: DeunaCreatePaymentRequest): Promise<DeunaCreatePaymentResponse> {
+    const url = this.buildUrl('/merchant/v1/payment/request');
+    console.log('[DeunaClient] POST', url.replace(this.config.apiKey, '***'));
+
     const response = await this.fetchWithTimeout(
-      `${this.config.baseUrl}/merchant/v1/payment/request`,
+      url,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
@@ -89,6 +100,7 @@ export class DeunaClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      console.error('[DeunaClient] Error response:', response.status, JSON.stringify(error));
       throw new Error(`DEUNA API error: ${response.status} - ${JSON.stringify(error)}`);
     }
 
@@ -103,8 +115,11 @@ export class DeunaClient {
   }
 
   async getPaymentStatus(internalReference: string, type: string): Promise<DeunaPaymentStatusResponse> {
+    const url = this.buildUrl(`/merchant/v1/payment/request/${internalReference}?type=${type}`);
+    console.log('[DeunaClient] GET status', internalReference);
+
     const response = await this.fetchWithTimeout(
-      `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}?type=${type}`,
+      url,
       {
         method: 'GET',
         headers: this.getAuthHeaders(),
@@ -113,6 +128,7 @@ export class DeunaClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      console.error('[DeunaClient] Status error response:', response.status, JSON.stringify(error));
       throw new Error(`DEUNA API error: ${response.status} - ${JSON.stringify(error)}`);
     }
 
@@ -133,8 +149,10 @@ export class DeunaClient {
   }
 
   async refundPayment(internalReference: string, type: string): Promise<boolean> {
+    const url = this.buildUrl(`/merchant/v1/payment/request/${internalReference}/refund`);
+
     const response = await this.fetchWithTimeout(
-      `${this.config.baseUrl}/merchant/v1/payment/request/${internalReference}/refund`,
+      url,
       {
         method: 'POST',
         headers: this.getAuthHeaders(),
