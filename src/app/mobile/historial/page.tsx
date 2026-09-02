@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useMobileAuth } from '@/hooks/useMobileAuth'
 
@@ -8,6 +8,8 @@ interface Session {
   energy_kwh: number | null; cost: number | null; status: string
   charger_id: string; chargers?: { name: string | null }
 }
+
+const PAGE_SIZE = 20
 
 function duration(start: string, end: string | null) {
   if (!end) return 'En curso'
@@ -31,13 +33,39 @@ export default function HistorialPage() {
   const { user, loading } = useMobileAuth()
   const [sessions, setSessions] = useState<Session[]>([])
   const [dataLoading, setDataLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [offset, setOffset] = useState(0)
+
+  const fetchSessions = useCallback(async (uid: string, from: number) => {
+    const { data } = await supabase
+      .from('charging_sessions')
+      .select('*, chargers(name)')
+      .eq('user_id', uid)
+      .order('started_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+    return data || []
+  }, [])
 
   useEffect(() => {
     if (!user) return
-    supabase.from('charging_sessions').select('*, chargers(name)')
-      .eq('user_id', user.id).order('started_at', { ascending: false }).limit(50)
-      .then(({ data }) => { if (data) setSessions(data); setDataLoading(false) })
-  }, [user])
+    fetchSessions(user.id, 0).then(data => {
+      setSessions(data)
+      setHasMore(data.length === PAGE_SIZE)
+      setDataLoading(false)
+    })
+  }, [user, fetchSessions])
+
+  const loadMore = async () => {
+    if (!user || loadingMore) return
+    setLoadingMore(true)
+    const next = offset + PAGE_SIZE
+    const data = await fetchSessions(user.id, next)
+    setSessions(prev => [...prev, ...data])
+    setOffset(next)
+    setHasMore(data.length === PAGE_SIZE)
+    setLoadingMore(false)
+  }
 
   if (loading || dataLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
@@ -52,7 +80,7 @@ export default function HistorialPage() {
     <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
       <div className="px-4 pt-6 pb-4">
         <h1 className="text-xl font-bold text-white">Historial</h1>
-        <p className="text-gray-500 text-xs mt-0.5">Últimas {sessions.length} sesiones</p>
+        <p className="text-gray-500 text-xs mt-0.5">{sessions.length} sesiones cargadas</p>
       </div>
 
       {sessions.length > 0 && (
@@ -97,6 +125,21 @@ export default function HistorialPage() {
             </div>
           </div>
         ))}
+
+        {hasMore && (
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="w-full mt-3 py-3 rounded-2xl border border-gray-700 bg-gray-900 text-gray-300 text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {loadingMore ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-gray-500 border-t-green-400 rounded-full animate-spin" />
+                Cargando...
+              </span>
+            ) : 'Ver más sesiones'}
+          </button>
+        )}
       </div>
     </div>
   )
