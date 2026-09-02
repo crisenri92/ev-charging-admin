@@ -55,7 +55,7 @@ export default function AccountPage() {
   const memberSince = user?.created_at ? new Date(user.created_at).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }) : ''
 
   return (
-    <div className="min-h-screen text-white pb-24 px-4 pt-6" style={{ background: '#0f172a' }}>
+    <div className="min-h-screen text-white px-4 pt-6" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       <h1 className="text-xl font-bold mb-6">Mi Cuenta</h1>
 
       {/* Avatar */}
