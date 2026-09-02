@@ -477,7 +477,24 @@ function MobileContent() {
       )}
 
       {/* List view */}
+      {activeSession && <ActiveSessionBanner session={activeSession} />}
+
       {!mapView && (
+        <div className="px-4 mb-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-3 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar cargador..."
+                className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gray-700" />
+            </div>
+            <button onClick={() => setShowOnlyAvailable(v => !v)}
+              className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border transition-all ${showOnlyAvailable ? 'bg-green-900/40 text-green-400 border-green-700/40' : 'bg-gray-900 text-gray-500 border-gray-800'}`}>
+              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+              Disponibles
+            </button>
+          </div>
+        </div>
         <div className="px-4 space-y-6">
           {available.length > 0 && (
             <div>
