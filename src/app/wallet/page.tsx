@@ -183,18 +183,18 @@ function WalletContent() {
 
       {pendingPayment && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-gray-900 w-full max-w-sm rounded-2xl p-4 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
               <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
 
             {pendingPayment.qrCode && (
-              <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
+              <div className="bg-white rounded-xl p-2 flex justify-center mb-3">
                 <img
                   src={pendingPayment.qrCode}
                   alt="QR de pago Deuna"
-                  className="w-56 h-56 object-contain"
+                  className="w-40 h-40 object-contain"
                 />
               </div>
             )}
