@@ -14,12 +14,6 @@ export async function POST(req: NextRequest) {
     const headers = Object.fromEntries(req.headers);
     const body = await req.json();
 
-    console.log('[Deuna Webhook] Received webhook:', {
-      status: body.status,
-      transactionId: body.idTransaction,
-      internalRef: body.internalTransactionReference,
-      amount: body.amount,
-    });
 
     // 2. Procesar webhook usando el gateway
     const gateway = initializePaymentGateway();
@@ -39,11 +33,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Deuna Webhook] Event processed:', {
-      paymentId: webhookEvent.paymentId,
-      status: webhookEvent.status,
-      amount: webhookEvent.amount,
-    });
 
     // 3. Buscar el pago en nuestra BD
     const repo = getPaymentRepository();
@@ -71,7 +60,6 @@ export async function POST(req: NextRequest) {
 
     // 4. Verificar si ya fue procesado (evitar duplicados)
     if (payment.status === 'approved') {
-      console.log('[Deuna Webhook] Payment already processed:', payment.id);
       return NextResponse.json({
         received: true,
         message: 'Payment already processed',
@@ -80,7 +68,6 @@ export async function POST(req: NextRequest) {
 
     // 5. Solo procesar si está aprobado
     if (webhookEvent.status !== PaymentStatus.APPROVED) {
-      console.log('[Deuna Webhook] Payment not approved, status:', webhookEvent.status);
       
       // Actualizar estado si cambió
       await repo.updatePaymentStatus(payment.id, webhookEvent.status);
@@ -103,7 +90,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log('[Deuna Webhook] ✅ Webhook processed successfully');
 
     return NextResponse.json({
       received: true,
