@@ -455,6 +455,25 @@ function MobileContent() {
       )}
 
       {/* Map view */}
+      {filtered.length === 0 && !loading && !mapView && (
+        <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+          <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <p className="text-white font-semibold text-base mb-1">Sin resultados</p>
+          <p className="text-gray-500 text-sm mb-4">{showOnlyAvailable ? 'No hay cargadores disponibles ahora' : 'No se encontraron cargadores'}</p>
+          {(showOnlyAvailable || searchQuery) && (
+            <button onClick={() => { setShowOnlyAvailable(false); setSearchQuery('') }}
+              className="text-green-400 text-sm border border-green-700/40 rounded-xl px-4 py-2 active:opacity-70">
+              Ver todos los cargadores
+            </button>
+          )}
+        </div>
+      )}
+
       {mapView && (
         <div className="mb-0">
           {mappableChargers.length > 0 ? (
@@ -480,12 +499,12 @@ function MobileContent() {
       {activeSession && <ActiveSessionBanner session={activeSession} />}
 
       {!mapView && (
-        <div className="px-4 mb-3">
+        <div className="px-4 mb-3" role="search">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <svg className="absolute left-3 top-3 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Buscar cargador..."
+                type="search" inputMode="search" autoComplete="off" placeholder="Buscar cargador o dirección..."
                 className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gray-700" />
             </div>
             <button onClick={() => setShowOnlyAvailable(v => !v)}
