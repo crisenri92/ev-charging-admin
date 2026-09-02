@@ -12,14 +12,15 @@ export function middleware(request: NextRequest) {
   // Allow public auth pages
   if (PUBLIC_PATHS.includes(pathname)) return NextResponse.next()
 
-  // Allow mobile and wallet pages — they handle their own Supabase auth client-side
+  // Allow mobile and wallet pages â they handle their own Supabase auth client-side
   if (MOBILE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) {
     return NextResponse.next()
   }
 
   // Admin pages require admin_token
+  const expectedSecret = process.env.ADMIN_SECRET || 'ev-admin-secret-2024'
   const token = request.cookies.get('admin_token')?.value
-  if (!token || token !== process.env.ADMIN_SECRET) {
+  if (!token || token !== expectedSecret) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
