@@ -77,7 +77,7 @@ export default function HistorialPage() {
   const totalCost = sessions.reduce((s, r) => s + (r.cost || 0), 0)
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
+    <div className="min-h-screen" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       <div className="px-4 pt-6 pb-4">
         <h1 className="text-xl font-bold text-white">Historial</h1>
         <p className="text-gray-500 text-xs mt-0.5">{sessions.length} sesiones cargadas</p>
