@@ -1,11 +1,11 @@
 import MobileBottomNav from '@/components/MobileBottomNav'
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Outfit } from 'next/font/google'
 import './globals.css'
 import ConditionalSidebar from '@/components/ConditionalSidebar'
 import { ToastContainer } from '@/components/Toast'
 
-const inter = Inter({ subsets: ['latin'] })
+const outfit = Outfit({ subsets: ['latin'], weight: ['400', '500', '600', '700', '900'] })
 
 export const metadata: Metadata = {
   title: 'RecargaT',
@@ -46,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${inter.className} bg-gray-950 text-white`}>
+      <body className={`${outfit.className} bg-gray-950 text-white`}>
         <div className="flex min-h-screen">
           <ConditionalSidebar />
           <main className="flex-1 pt-16 p-4 md:p-8 overflow-auto min-w-0">
