@@ -14,12 +14,12 @@ export default function WelcomePage() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover"
       >
-        <source src="https://assets.mixkit.co/videos/5399/5399-720.mp4" type="video/mp4" />
-        <source src="https://assets.mixkit.co/videos/34324/34324-720.mp4" type="video/mp4" />
+        <source src="https://assets.mixkit.co/videos/8271/8271-720.mp4" type="video/mp4" />
+        <source src="https://assets.mixkit.co/videos/26966/26966-720.mp4" type="video/mp4" />
       </video>
       <div
         className="absolute inset-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.8) 100%)' }}
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.82) 100%)' }}
       />
       <div className={`relative z-10 flex flex-col items-center justify-center h-full px-6 text-center ${outfit.className}`}>
         <div className="mb-10">
