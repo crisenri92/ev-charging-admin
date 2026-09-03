@@ -14,9 +14,9 @@ export default function WelcomePage() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover"
       >
+        <source src="https://videos.pexels.com/video-files/9790134/9790134-hd_1280_720_30fps.mp4" type="video/mp4" />
+        <source src="https://videos.pexels.com/video-files/9790139/9790139-sd_640_360_30fps.mp4" type="video/mp4" />
         <source src="https://assets.mixkit.co/videos/23125/23125-720.mp4" type="video/mp4" />
-        <source src="https://assets.mixkit.co/videos/22982/22982-720.mp4" type="video/mp4" />
-        <source src="https://assets.mixkit.co/videos/23126/23126-720.mp4" type="video/mp4" />
       </video>
       <div
         className="absolute inset-0"
