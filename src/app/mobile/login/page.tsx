@@ -37,9 +37,9 @@ export default function MobileLoginPage() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover"
       >
+        <source src="https://videos.pexels.com/video-files/9790134/9790134-hd_1280_720_30fps.mp4" type="video/mp4" />
+        <source src="https://videos.pexels.com/video-files/9790139/9790139-sd_640_360_30fps.mp4" type="video/mp4" />
         <source src="https://assets.mixkit.co/videos/14538/14538-720.mp4" type="video/mp4" />
-        <source src="https://assets.mixkit.co/videos/7900/7900-720.mp4" type="video/mp4" />
-        <source src="https://assets.mixkit.co/videos/30593/30593-720.mp4" type="video/mp4" />
       </video>
       <div
         className="absolute inset-0"
