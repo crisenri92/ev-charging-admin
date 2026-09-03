@@ -5,8 +5,8 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('admin_token')?.value
   const { pathname } = request.nextUrl
 
-  // Public routes: landing, admin login, mobile app
-  if (pathname === '/' || pathname === '/login' || pathname.startsWith('/mobile')) {
+  // Public routes: landing, admin login, mobile app, wallet
+  if (pathname === '/' || pathname === '/login' || pathname.startsWith('/mobile') || pathname === '/wallet') {
     return NextResponse.next()
   }
 
