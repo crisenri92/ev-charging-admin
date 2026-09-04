@@ -15,7 +15,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const token =
       req.headers.get('authorization')?.replace('Bearer ', '').trim() ||
