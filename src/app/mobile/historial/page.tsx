@@ -6,7 +6,7 @@ import { useMobileAuth } from '@/hooks/useMobileAuth'
 interface Session {
   id: string; started_at: string; ended_at: string | null
   energy_kwh: number | null; cost: number | null; status: string
-  charger_id: string; chargers?: { name: string | null }
+  charger_id: string; charger_name?: string | null
 }
 
 const PAGE_SIZE = 20
@@ -40,7 +40,7 @@ export default function HistorialPage() {
   const fetchSessions = useCallback(async (uid: string, from: number) => {
     const { data } = await supabase
       .from('charging_sessions')
-      .select('*, chargers(name)')
+      .select('*')
       .eq('user_id', uid)
       .order('started_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
@@ -109,7 +109,7 @@ export default function HistorialPage() {
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 ${s.status === 'active' ? 'bg-yellow-900/40' : 'bg-green-900/30'}`}>⚡</div>
                 <div>
-                  <p className="text-white text-sm font-semibold">{s.chargers?.name || s.charger_id}</p>
+                  <p className="text-white text-sm font-semibold">{s.charger_name || s.charger_id}</p>
                   <p className="text-gray-500 text-xs mt-0.5">{relDate(s.started_at)} · {duration(s.started_at, s.ended_at)}</p>
                 </div>
               </div>
