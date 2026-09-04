@@ -287,8 +287,8 @@ function MobileContent() {
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
       fetchReservations(session.access_token)
-          supabase.from('charging_sessions').select('charger_id, started_at, chargers(name)').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
-            if (data) setActiveSession({ charger_id: data.charger_id, charger_name: (data.chargers as any)?.name || data.charger_id, started_at: data.started_at || new Date().toISOString() })
+          supabase.from('charging_sessions').select('charger_id, started_at, charger_name').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
+            if (data) setActiveSession({ charger_id: data.charger_id, charger_name: data.charger_name || data.charger_id, started_at: data.started_at || new Date().toISOString() })
           })
     })
     fetchChargers()
