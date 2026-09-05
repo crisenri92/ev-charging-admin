@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { BottomNav } from '../components/BottomNav'
 
 
 
@@ -129,6 +130,7 @@ export default function AccountPage() {
         className="w-full py-3 bg-red-900/40 hover:bg-red-900/60 text-red-400 font-semibold rounded-xl text-sm transition-colors">
         {signingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
       </button>
+      <BottomNav />
     </div>
   )
 }
