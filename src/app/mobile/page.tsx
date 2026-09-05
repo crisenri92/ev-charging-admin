@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, Suspense, lazy, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { MobileToast } from '@/components/MobileToast'
 
 const ChargerMap = lazy(() => import('@/components/ChargerMap'))
@@ -23,11 +23,11 @@ const STATUS_COLOR: Record<string, string> = {
   available: 'bg-green-500', charging: 'bg-yellow-500', offline: 'bg-red-500', unavailable: 'bg-gray-600',
 }
 const STATUS_LABEL: Record<string, string> = {
-  available: 'Disponible', charging: 'En uso', offline: 'Sin conexión', unavailable: 'No disponible',
+  available: 'Disponible', charging: 'En uso', offline: 'Sin conexiÃ³n', unavailable: 'No disponible',
 }
 const ERROR_MAP: Record<string, string> = {
   insufficient_balance: 'Saldo insuficiente. Recarga tu wallet.',
-  'No autenticado': 'Sesión expirada. Vuelve a iniciar sesión.',
+  'No autenticado': 'SesiÃ³n expirada. Vuelve a iniciar sesiÃ³n.',
   'Charger not found': 'Cargador no encontrado.',
 }
 
@@ -61,10 +61,10 @@ function ReserveModal({ charger, onConfirm, onCancel, loading }: {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="text-3xl mb-3">🕐</div>
+        <div className="text-3xl mb-3">ð</div>
         <h2 className="text-xl font-bold text-white mb-1">Reservar cargador</h2>
         <p className="text-gray-400 text-sm mb-5">{charger.name || charger.id}</p>
-        <p className="text-gray-500 text-xs mb-3">¿Cuánto tiempo necesitas?</p>
+        <p className="text-gray-500 text-xs mb-3">Â¿CuÃ¡nto tiempo necesitas?</p>
         <div className="flex gap-2 mb-5">
           {[15, 30, 60].map(m => (
             <button key={m} onClick={() => setDuration(m)}
@@ -73,7 +73,7 @@ function ReserveModal({ charger, onConfirm, onCancel, loading }: {
             </button>
           ))}
         </div>
-        <p className="text-gray-600 text-xs mb-5">El cargador quedará reservado hasta las {new Date(Date.now() + duration * 60000).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</p>
+        <p className="text-gray-600 text-xs mb-5">El cargador quedarÃ¡ reservado hasta las {new Date(Date.now() + duration * 60000).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</p>
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-sm font-medium transition-colors">Cancelar</button>
           <button onClick={() => onConfirm(duration)} disabled={loading}
@@ -90,9 +90,9 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="w-16 h-16 rounded-full bg-green-900/60 border-2 border-green-500 flex items-center justify-center text-3xl mx-auto mb-4">⚡</div>
-        <h2 className="text-xl font-bold text-white mb-1">¡Carga iniciada!</h2>
-        <p className="text-gray-400 text-sm mb-5">Tu sesión está activa</p>
+        <div className="w-16 h-16 rounded-full bg-green-900/60 border-2 border-green-500 flex items-center justify-center text-3xl mx-auto mb-4">â¡</div>
+        <h2 className="text-xl font-bold text-white mb-1">Â¡Carga iniciada!</h2>
+        <p className="text-gray-400 text-sm mb-5">Tu sesiÃ³n estÃ¡ activa</p>
         <div className="bg-gray-800 rounded-2xl p-4 text-left space-y-3 mb-5">
           <div className="flex justify-between"><span className="text-gray-400 text-sm">Cargador</span><span className="text-white text-sm font-semibold">{receipt.chargerName}</span></div>
           <div className="flex justify-between"><span className="text-gray-400 text-sm">Inicio</span><span className="text-white text-sm">{new Date(receipt.startedAt).toLocaleTimeString('es-EC')}</span></div>
@@ -112,9 +112,9 @@ function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="text-4xl mb-3">📷</div>
+        <div className="text-4xl mb-3">ð·</div>
         <h2 className="text-xl font-bold text-white mb-1">Cargador detectado</h2>
-        <p className="text-gray-400 text-sm mb-4">Escaneaste el código QR de:</p>
+        <p className="text-gray-400 text-sm mb-4">Escaneaste el cÃ³digo QR de:</p>
         <div className="bg-gray-800 rounded-xl p-3 mb-4">
           <p className="text-white font-semibold">{charger?.name || chargerId}</p>
           <div className="flex items-center justify-center gap-1.5 mt-1">
@@ -122,7 +122,7 @@ function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
             <span className="text-gray-400 text-xs">{STATUS_LABEL[st] || charger?.status}</span>
           </div>
         </div>
-        {!available && <p className="text-yellow-400 text-sm mb-4 bg-yellow-900/20 rounded-xl px-3 py-2">Este cargador no está disponible</p>}
+        {!available && <p className="text-yellow-400 text-sm mb-4 bg-yellow-900/20 rounded-xl px-3 py-2">Este cargador no estÃ¡ disponible</p>}
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 bg-gray-800 text-white rounded-2xl text-sm font-medium">Cancelar</button>
           <button onClick={onConfirm} disabled={loading}
@@ -150,7 +150,7 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${isReservedByMe ? 'bg-blue-900/40' : available ? 'bg-green-900/40' : 'bg-gray-800'}`}>
-            {isReservedByMe ? '🔖' : '⚡'}
+            {isReservedByMe ? 'ð' : 'â¡'}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -161,14 +161,14 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_COLOR[st] || 'bg-gray-500'}`} />
               <span className="text-xs text-gray-400">{STATUS_LABEL[st] || charger.status}</span>
-              {dynamicPrice && !isReservedByOther && <span className="text-xs text-green-700">· ${dynamicPrice.price.toFixed(2)}/kWh</span>}
+              {dynamicPrice && !isReservedByOther && <span className="text-xs text-green-700">Â· ${dynamicPrice.price.toFixed(2)}/kWh</span>}
             </div>
             {charger.address && <p className="text-xs text-gray-600 mt-0.5 truncate max-w-[180px]">{charger.address}</p>}
             {charger.latitude && charger.longitude && (
               <a href={`https://www.google.com/maps/dir/?api=1&destination=${charger.latitude},${charger.longitude}`} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-blue-400 mt-0.5 hover:text-blue-300 active:opacity-70">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                Cómo llegar
+                CÃ³mo llegar
               </a>
             )}
             {isReservedByMe && <p className="text-xs text-blue-400 mt-0.5">Tu reserva activa</p>}
@@ -251,6 +251,31 @@ function MapToggle({ mapView, onToggle }: { mapView: boolean; onToggle: () => vo
   )
 }
 
+
+function BottomNav() {
+  const router = useRouter()
+  const path = usePathname() || ''
+  const tabs = [
+    { href: '/mobile', label: 'Inicio', icon: <svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' viewBox='0 0 24 24'><path d='M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg> },
+    { href: '/mobile/historial', label: 'Historial', icon: <svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg> },
+    { href: '/mobile/account', label: 'Cuenta', icon: <svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' viewBox='0 0 24 24'><path d='M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2'/><circle cx='12' cy='7' r='4'/></svg> },
+  ]
+  return (
+    <nav className='fixed bottom-0 left-0 right-0 z-40' style={{ background: '#0f172a', borderTop: '1px solid rgba(255,255,255,0.08)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className='flex items-center justify-around h-16'>
+        {tabs.map(tab => {
+          const active = path === tab.href || (tab.href !== '/mobile' && path.startsWith(tab.href))
+          return (
+            <button key={tab.href} onClick={() => router.push(tab.href)} className='flex flex-col items-center gap-1 flex-1 py-2 transition-colors' style={{ color: active ? '#4ade80' : '#6b7280' }}>
+              {tab.icon}
+              <span className='text-xs font-medium'>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
 function MobileContent() {
   const router = useRouter()
   const params = useSearchParams()
@@ -346,7 +371,7 @@ function MobileContent() {
       setBalance(data.balance ?? 0)
       fetchChargers()
       fetchReservations(session.access_token)
-    } catch { setToast({ msg: 'Error de conexión.', type: 'error' }) }
+    } catch { setToast({ msg: 'Error de conexiÃ³n.', type: 'error' }) }
     finally { setLoadingCharger(null) }
   }
 
@@ -366,7 +391,7 @@ function MobileContent() {
       setReserveModal(null)
       await fetchReservations(session.access_token)
       fetchChargers()
-    } catch { setToast({ msg: 'Error de conexión.', type: 'error' }) }
+    } catch { setToast({ msg: 'Error de conexiÃ³n.', type: 'error' }) }
     finally { setReservingCharger(null) }
   }
 
@@ -418,7 +443,7 @@ function MobileContent() {
       <div className="px-4 pb-4 flex items-center justify-between" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}>
         <div>
           <h1 className="text-xl font-bold text-white">Cargadores</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s · {chargers.length} {chargers.length === 1 ? 'estación' : 'estaciones'}</p>
+          <p className="text-gray-500 text-xs mt-0.5">Actualiza cada 15s Â· {chargers.length} {chargers.length === 1 ? 'estaciÃ³n' : 'estaciones'}</p>
         </div>
         <div className="flex items-center gap-2">
           <MapToggle mapView={mapView} onToggle={() => setMapView(v => !v)} />
@@ -441,13 +466,13 @@ function MobileContent() {
           {myReservations.map(res => (
             <div key={res.id} className="bg-blue-900/20 border border-blue-800/40 rounded-2xl px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="text-blue-400 text-xs font-semibold">🔖 Reserva activa</p>
+                <p className="text-blue-400 text-xs font-semibold">ð Reserva activa</p>
                 <p className="text-white text-sm font-medium mt-0.5">{res.charger_name}</p>
               </div>
               <div className="flex items-center gap-2">
                 <CountdownBadge expiresAt={res.expires_at} />
                 <button onClick={() => cancelReservation(res.id)}
-                  className="text-xs text-gray-500 hover:text-red-400 transition-colors">✕</button>
+                  className="text-xs text-gray-500 hover:text-red-400 transition-colors">â</button>
               </div>
             </div>
           ))}
@@ -484,12 +509,12 @@ function MobileContent() {
               <div className="bg-gray-900 px-4 py-2 flex gap-4 text-xs text-gray-500 border-t border-gray-800">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Disponible</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />En uso</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-500 inline-block" />Sin conexión</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-500 inline-block" />Sin conexiÃ³n</span>
               </div>
             </div>
           ) : (
             <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
-              <p className="text-gray-500 text-sm">Ningún cargador tiene coordenadas configuradas</p>
+              <p className="text-gray-500 text-sm">NingÃºn cargador tiene coordenadas configuradas</p>
             </div>
           )}
         </div>
@@ -504,7 +529,7 @@ function MobileContent() {
             <div className="relative flex-1">
               <svg className="absolute left-3 top-3 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                type="search" inputMode="search" autoComplete="off" placeholder="Buscar cargador o dirección..."
+                type="search" inputMode="search" autoComplete="off" placeholder="Buscar cargador o direcciÃ³n..."
                 className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gray-700" />
             </div>
             <button onClick={() => setShowOnlyAvailable(v => !v)}
@@ -517,7 +542,7 @@ function MobileContent() {
         <div className="px-4 space-y-6">
           {available.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles · {available.length}</p>
+              <p className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-2">Disponibles Â· {available.length}</p>
               <div className="space-y-2">
                 {available.map(c => {
                   const myRes = myReservations.find(r => r.charger_id === c.id) || null
@@ -540,15 +565,15 @@ function MobileContent() {
 
           {available.length === 0 && (
             <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
-              <p className="text-3xl mb-3">🔌</p>
+              <p className="text-3xl mb-3">ð</p>
               <p className="text-white font-medium mb-1">Sin cargadores disponibles</p>
-              <p className="text-gray-500 text-sm">El sistema verifica automáticamente cada 15 segundos</p>
+              <p className="text-gray-500 text-sm">El sistema verifica automÃ¡ticamente cada 15 segundos</p>
             </div>
           )}
 
           {unavailable.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">No disponibles · {unavailable.length}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">No disponibles Â· {unavailable.length}</p>
               <div className="space-y-2 opacity-50">
                 {unavailable.map(c => (
                   <ChargerCard key={c.id} charger={c} onStart={() => {}} onReserve={() => {}} onCancelReservation={() => {}} loading={false} />
@@ -558,6 +583,7 @@ function MobileContent() {
           )}
         </div>
       </>)}
+      <BottomNav />
     </div>
   )
 }
