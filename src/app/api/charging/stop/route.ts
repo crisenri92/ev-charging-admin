@@ -21,13 +21,13 @@ export async function POST(req: NextRequest) {
     if (!sessions || sessions.length === 0) return NextResponse.json({ message: 'No active session found' })
 
     const session = sessions[0]
-    const energyKwh = (meterStop != null && meterStart != null) ? (meterStop - meterStart) / 1000 : 0
+    const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null) ? (meterStop - (meterStart ?? session.meter_start)) / 1000 : 0
     const { price: pricePerKwh } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
     const now = new Date().toISOString()
 
     await supabase.from('charging_sessions').update({
-      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote',
+      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote', meter_start: (meterStart ?? session.meter_start) ?? null, meter_stop: meterStop ?? null,
     }).eq('id', session.id)
 
     if (cost > 0) {
