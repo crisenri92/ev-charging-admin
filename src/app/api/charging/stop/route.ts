@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 
-// Simple in-memory rate limiter (10 req/min per IP)
-const _rlMap = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = _rlMap.get(ip);
-  if (!entry || now > entry.resetAt) { _rlMap.set(ip, { count: 1, resetAt: now + 60_000 }); return true; }
-  if (entry.count >= 10) return false;
-  entry.count++;
-  return true;
-}
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
@@ -28,6 +16,8 @@ export async function POST(req: NextRequest) {
   if (!checkRateLimit(ip)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
+
+    const supabase = supabaseAdmin()
 
   try {
     const body = await req.json()
