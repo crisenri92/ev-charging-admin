@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 interface ChargingSession {
   id: string;
@@ -22,12 +23,12 @@ interface BalanceSummary {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return '—';
+  if (!iso) return 'â';
   return new Date(iso).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function formatDuration(start: string | null, stop: string | null) {
-  if (!start || !stop) return '—';
+  if (!start || !stop) return 'â';
   const mins = Math.round((new Date(stop).getTime() - new Date(start).getTime()) / 60000);
   if (mins < 60) return `${mins} min`;
   return `${Math.floor(mins / 60)}h ${mins % 60}min`;
@@ -43,6 +44,7 @@ function statusBadge(status: string) {
 }
 
 export default function HistorialPage() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<ChargingSession[]>([]);
   const [balance, setBalance] = useState<BalanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,7 @@ export default function HistorialPage() {
     async function load() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setError('No autenticado'); setLoading(false); return; }
+        if (!user) { router.replace('/login'); return; }
 
         const [{ data: sessData, error: sessErr }, { data: balData }] = await Promise.all([
           supabase
@@ -101,9 +103,9 @@ export default function HistorialPage() {
       {/* Resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Saldo actual', value: balance ? `$${balance.balance.toFixed(2)}` : '—' },
+          { label: 'Saldo actual', value: balance ? `$${balance.balance.toFixed(2)}` : 'â' },
           { label: 'Sesiones completadas', value: completed.toString() },
-          { label: 'Energía total (kWh)', value: totalEnergy.toFixed(2) },
+          { label: 'EnergÃ­a total (kWh)', value: totalEnergy.toFixed(2) },
           { label: 'Costo total', value: `$${totalCost.toFixed(2)}` },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -116,8 +118,8 @@ export default function HistorialPage() {
       {/* Tabla */}
       {sessions.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-lg">Sin sesiones de carga aún</p>
-          <p className="text-sm mt-1">Las sesiones aparecerán aquí después de tu primera carga</p>
+          <p className="text-lg">Sin sesiones de carga aÃºn</p>
+          <p className="text-sm mt-1">Las sesiones aparecerÃ¡n aquÃ­ despuÃ©s de tu primera carga</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -125,7 +127,7 @@ export default function HistorialPage() {
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
                 <tr>
-                  {['Fecha', 'Cargador', 'Duración', 'kWh', 'Costo', 'Estado', 'Razón'].map(h => (
+                  {['Fecha', 'Cargador', 'DuraciÃ³n', 'kWh', 'Costo', 'Estado', 'RazÃ³n'].map(h => (
                     <th key={h} className="px-4 py-3 text-left">{h}</th>
                   ))}
                 </tr>
@@ -136,14 +138,14 @@ export default function HistorialPage() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(s.start_time ?? s.created_at)}</td>
                     <td className="px-4 py-3 font-mono text-gray-800">{s.charger_id}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDuration(s.start_time, s.stop_time)}</td>
-                    <td className="px-4 py-3 text-gray-800">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
+                    <td className="px-4 py-3 text-gray-800">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : 'â'}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{s.cost != null ? `$${s.cost.toFixed(2)}` : 'â'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(s.status)}`}>
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{s.stop_reason ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{s.stop_reason ?? 'â'}</td>
                   </tr>
                 ))}
               </tbody>
