@@ -4,27 +4,19 @@
  * Si hay autorización Deuna la usa; si no, valida saldo de wallet.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { NextRequest } from 'next/server'
+import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
     const cookieStore = await cookies()
 
-    const token =
-      req.headers.get('authorization')?.replace('Bearer ', '').trim() ||
-      cookieStore.get('sb-access-token')?.value
-
-    if (!token) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-
-    const { data: { user } } = await supabase.auth.getUser(token)
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      const { user } = await requireAuth()
+      const supabase = supabaseAdmin()
 
     const repo = getPaymentRepository()
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
