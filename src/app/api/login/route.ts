@@ -1,15 +1,18 @@
-
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit } from '@/lib/api-helpers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!checkRateLimit(`login:${ip}`, 5))
+    return NextResponse.json({ error: 'Demasiados intentos. Espera un minuto.' }, { status: 429 })
+
   const { email, password } = await request.json()
 
-  // Sign in with anon key
   const authClient = createClient(supabaseUrl, supabaseAnonKey)
   const { data, error } = await authClient.auth.signInWithPassword({ email, password })
 
@@ -17,7 +20,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 })
   }
 
-  // Check admin role using service role key (bypasses RLS)
   const adminClient = createClient(supabaseUrl, supabaseServiceKey)
   const { data: profile } = await adminClient
     .from('profiles')
