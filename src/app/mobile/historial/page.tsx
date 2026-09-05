@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useMobileAuth } from '@/hooks/useMobileAuth'
+import { BottomNav } from '../components/BottomNav'
 
 interface Session {
   id: string; started_at: string; ended_at: string | null
@@ -141,6 +142,7 @@ export default function HistorialPage() {
           </button>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }
