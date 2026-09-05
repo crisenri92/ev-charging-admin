@@ -6,6 +6,12 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
+  // Validate webhook secret
+  const secret = request.headers.get('authorization')?.replace('Bearer ', '');
+  if (!secret || secret !== process.env.CSMS_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json()
     const { chargerId, sessionId, meterStart, meterStop, reason } = body
@@ -54,8 +60,8 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: session.user_id,
-            title: '⚡ Carga completada',
-            body: `${energyKwh.toFixed(2)} kWh · $${cost.toFixed(2)} descontado · Saldo: $${balanceAfter.toFixed(2)}`,
+            title: 'â¡ Carga completada',
+            body: `${energyKwh.toFixed(2)} kWh Â· $${cost.toFixed(2)} descontado Â· Saldo: $${balanceAfter.toFixed(2)}`,
             url: '/mobile/historial',
           }),
         })
