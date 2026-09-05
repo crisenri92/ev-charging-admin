@@ -108,7 +108,7 @@ export default function HistorialPage() {
         {[
           { label: 'Saldo actual', value: balance ? `$${balance.balance.toFixed(2)}` : 'â' },
           { label: 'Sesiones completadas', value: completed.toString() },
-          { label: 'EnergÃ­a total (kWh)', value: totalEnergy.toFixed(2) },
+          { label: 'Energía total (kWh)', value: totalEnergy.toFixed(2) },
           { label: 'Costo total', value: `$${totalCost.toFixed(2)}` },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -121,8 +121,8 @@ export default function HistorialPage() {
       {/* Tabla */}
       {sessions.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-lg">Sin sesiones de carga aÃºn</p>
-          <p className="text-sm mt-1">Las sesiones aparecerÃ¡n aquÃ­ despuÃ©s de tu primera carga</p>
+          <p className="text-lg">Sin sesiones de carga aún</p>
+          <p className="text-sm mt-1">Las sesiones aparecerán aquí después de tu primera carga</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -130,7 +130,7 @@ export default function HistorialPage() {
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
                 <tr>
-                  {['Fecha', 'Cargador', 'DuraciÃ³n', 'kWh', 'Costo', 'Estado', 'RazÃ³n'].map(h => (
+                  {['Fecha', 'Cargador', 'Duración', 'kWh', 'Costo', 'Estado', 'Razón'].map(h => (
                     <th key={h} className="px-4 py-3 text-left">{h}</th>
                   ))}
                 </tr>
