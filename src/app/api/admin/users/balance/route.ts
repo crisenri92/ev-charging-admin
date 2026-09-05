@@ -9,6 +9,7 @@ const supabase = createClient(
 export async function POST(req) {
   try {
     const { userId, amount, operation } = await req.json()
+    if (!userId || amount === undefined || !operation)
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     const { data: existing } = await supabase.from('user_balances').select('balance').eq('user_id', userId).single()
     const currentBalance = existing?.balance ?? 0
