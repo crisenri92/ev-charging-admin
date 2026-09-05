@@ -21,28 +21,33 @@ export async function POST(req: NextRequest) {
     if (!sessions || sessions.length === 0) return NextResponse.json({ message: 'No active session found' })
 
     const session = sessions[0]
-    const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null) ? (meterStop - (meterStart ?? session.meter_start)) / 1000 : 0
+    const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null)
+      ? (meterStop - (meterStart ?? session.meter_start)) / 1000
+      : 0
     const { price: pricePerKwh } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
     const now = new Date().toISOString()
 
-    await supabase.from('charging_sessions').update({
-      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote', meter_start: (meterStart ?? session.meter_start) ?? null, meter_stop: meterStop ?? null,
-    }).eq('id', session.id)
+    // Atomic RPC: closes session + deducts balance + inserts transaction in one DB transaction
+    const { data: rpcData, error: rpcError } = await supabase.rpc('close_charging_session', {
+      p_session_id: session.id,
+      p_user_id: session.user_id,
+      p_energy_kwh: energyKwh,
+      p_cost: cost,
+      p_stop_meter: meterStop ?? null,
+      p_stop_time: now,
+      p_stop_reason: reason || 'Remote',
+    })
 
+    if (rpcError) {
+      console.error('close_charging_session RPC failed:', rpcError)
+      return NextResponse.json({ error: rpcError.message }, { status: 500 })
+    }
+
+    const balanceAfter: number = (rpcData as any)?.balance_after ?? 0
+
+    // Send push notification (non-blocking)
     if (cost > 0) {
-      const { data: balanceRow } = await supabase.from('user_balances').select('balance').eq('user_id', session.user_id).single()
-      const currentBalance = balanceRow?.balance || 0
-      const newBalance = Math.max(0, currentBalance - cost)
-      await supabase.from('user_balances').update({ balance: newBalance }).eq('user_id', session.user_id)
-      await supabase.from('balance_transactions').insert({
-        user_id: session.user_id, amount: -cost,
-        type: 'charge_deduction',
-        description: `Sesión de carga - ${session.charger_name || session.charger_id} - ${energyKwh.toFixed(3)} kWh`,
-        balance_after: newBalance, reference_id: session.id,
-      })
-
-      // Send push notification
       try {
         await fetch(`${APP_URL}/api/push/send`, {
           method: 'POST',
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             userId: session.user_id,
             title: '⚡ Carga completada',
-            body: `${energyKwh.toFixed(2)} kWh · $${cost.toFixed(2)} descontado · Saldo: $${newBalance.toFixed(2)}`,
+            body: `${energyKwh.toFixed(2)} kWh · $${cost.toFixed(2)} descontado · Saldo: $${balanceAfter.toFixed(2)}`,
             url: '/mobile/historial',
           }),
         })
