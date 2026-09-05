@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: session.user_id,
-            title: 'Ã¢ÂÂ¡ Carga completada',
-            body: `${energyKwh.toFixed(2)} kWh ÃÂ· $${cost.toFixed(2)} descontado ÃÂ· Saldo: $${balanceAfter.toFixed(2)}`,
+            title: '⚡ Carga completada',
+            body: `${energyKwh.toFixed(2)} kWh Â· $${cost.toFixed(2)} descontado Â· Saldo: $${balanceAfter.toFixed(2)}`,
             url: '/mobile/historial',
           }),
         })
