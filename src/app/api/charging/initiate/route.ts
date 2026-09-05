@@ -6,28 +6,18 @@
  * 3. Si es Wallet: Valida saldo y crea autorización inmediata
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { initializePaymentGateway, PaymentProvider, PaymentContext } from '@/lib/payments';
-import { getPaymentRepository } from '@/lib/database/payment-repository';
-import { createClient } from '@supabase/supabase-js';
-import { getCurrentPrice } from '@/lib/pricing';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { NextRequest } from 'next/server'
+import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
+import { getCurrentPrice } from '@/lib/pricing'
+import { getPaymentRepository } from '@/lib/database/payment-repository'
+import { getPaymentsLib } from '@/lib/payments'
 
 export async function POST(req: NextRequest) {
   try {
     // 1. Autenticación
     const authHeader = req.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      const { user } = await requireAuth()
+      const supabase = supabaseAdmin()
     
     if (authError || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
