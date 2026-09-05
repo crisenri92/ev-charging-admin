@@ -10,7 +10,7 @@ import { NextRequest } from 'next/server'
 import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
-import { getPaymentsLib } from '@/lib/payments'
+import { initializePaymentGateway } from '@/lib/payments'
 
 export async function POST(req: NextRequest) {
   try {
