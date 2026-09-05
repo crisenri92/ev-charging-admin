@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentPrice } from '@/lib/pricing'
 
+// Simple in-memory rate limiter (10 req/min per IP)
+const _rlMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = _rlMap.get(ip);
+  if (!entry || now > entry.resetAt) { _rlMap.set(ip, { count: 1, resetAt: now + 60_000 }); return true; }
+  if (entry.count >= 10) return false;
+  entry.count++;
+  return true;
+}
+
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
@@ -10,6 +21,12 @@ export async function POST(req: NextRequest) {
   const secret = request.headers.get('authorization')?.replace('Bearer ', '');
   if (!secret || secret !== process.env.CSMS_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Rate limit
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown';
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
   try {
@@ -35,6 +52,17 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString()
 
     // Atomic RPC: closes session + deducts balance + inserts transaction in one DB transaction
+    // Validate chargerId has an active session
+    const { data: activeSession } = await supabase
+      .from('charging_sessions')
+      .select('id')
+      .eq('charger_id', chargerId)
+      .eq('status', 'Active')
+      .maybeSingle();
+    if (!activeSession) {
+      return NextResponse.json({ error: 'No active session for this charger' }, { status: 404 });
+    }
+
     const { data: rpcData, error: rpcError } = await supabase.rpc('close_charging_session', {
       p_session_id: session.id,
       p_user_id: session.user_id,
@@ -60,8 +88,8 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: session.user_id,
-            title: 'â¡ Carga completada',
-            body: `${energyKwh.toFixed(2)} kWh Â· $${cost.toFixed(2)} descontado Â· Saldo: $${balanceAfter.toFixed(2)}`,
+            title: 'Ã¢ÂÂ¡ Carga completada',
+            body: `${energyKwh.toFixed(2)} kWh ÃÂ· $${cost.toFixed(2)} descontado ÃÂ· Saldo: $${balanceAfter.toFixed(2)}`,
             url: '/mobile/historial',
           }),
         })
