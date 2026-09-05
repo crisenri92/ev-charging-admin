@@ -12,6 +12,7 @@ interface ChargerLocation {
 
 interface Props {
   chargers: ChargerLocation[]
+  height?: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -28,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
   unavailable: '#6b7280',
 }
 
-export default function ChargerMap({ chargers }: Props) {
+export default function ChargerMap({ chargers, height = '100%' }: Props) {
   const [selected, setSelected] = useState<ChargerLocation | null>(null)
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function ChargerMap({ chargers }: Props) {
   return (
     <>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossOrigin="" />
-      <div id="charger-map" style={{ height: '360px', width: '100%', borderRadius: '12px', zIndex: 0 }} />
+      <div id="charger-map" style={{ height: height, width: '100%', borderRadius: '12px', zIndex: 0 }} />
 
       {selected && (
         <div
