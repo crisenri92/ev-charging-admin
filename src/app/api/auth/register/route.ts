@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/api-helpers'
 import { createClient } from '@supabase/supabase-js'
 
 const adminDb = createClient(
@@ -8,6 +9,10 @@ const adminDb = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!checkRateLimit(`register:${ip}`, 3))
+    return NextResponse.json({ error: 'Demasiados intentos. Espera un minuto.' }, { status: 429 })
+
   const { email, password, fullName } = await req.json()
 
   if (!email || !password) {
