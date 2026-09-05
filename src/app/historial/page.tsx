@@ -96,6 +96,9 @@ export default function HistorialPage() {
   const totalEnergy = sessions.reduce((s, r) => s + (r.energy_kwh ?? 0), 0);
   const completed = sessions.filter(s => s.status === 'completed').length;
 
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="text-gray-500 text-lg">Cargando historial...</div></div>;
+  if (error) return <div className="flex items-center justify-center min-h-screen"><div className="text-red-600 text-lg">Error: {error}</div></div>;
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Historial de Sesiones</h1>
