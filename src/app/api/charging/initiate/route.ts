@@ -7,7 +7,7 @@
  */
 
 import { NextRequest } from 'next/server'
-import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
+import { requireAuth, supabaseAdmin, apiError, checkRateLimit } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 import { initializePaymentGateway } from '@/lib/payments'
@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
     // 1. Autenticación
     const authHeader = req.headers.get('authorization');
       const { user } = await requireAuth()
+      if (!checkRateLimit(`initiate:${user.id}`, 5))
+        return apiError('Demasiadas solicitudes. Espera un minuto.', 429)
       const supabase = supabaseAdmin()
     
     if (authError || !user) {
