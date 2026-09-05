@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/api-helpers';
 import { PaymentContext } from '@/lib/payments';
 import { rechargeWalletUseCase, directPaymentUseCase, UseCaseError } from '@/lib/use-cases';
 import { createClient } from '@supabase/supabase-js';
