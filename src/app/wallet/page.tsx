@@ -182,8 +182,8 @@ function WalletContent() {
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 
       {pendingPayment && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-gray-900 w-full max-w-sm rounded-2xl p-4 border border-gray-700">
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
+          <div className="bg-gray-900 w-full max-w-sm rounded-2xl p-4 border border-gray-700 overflow-y-auto max-h-[80vh]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
               <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
