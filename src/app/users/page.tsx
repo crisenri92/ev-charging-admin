@@ -211,8 +211,8 @@ export default function UsersPage() {
 
       {/* Balance modal */}
       {balanceUser && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center z-50 p-4 pt-12 sm:pt-4 overflow-y-auto">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto my-auto">
             <h3 className="text-white font-bold text-lg mb-1">Gestionar saldo</h3>
             <p className="text-gray-400 text-sm mb-4">{balanceUser.email} · Saldo actual: <span className="text-green-400">${balanceUser.balance.toFixed(2)}</span></p>
             <div className="space-y-3">
@@ -238,8 +238,8 @@ export default function UsersPage() {
 
       {/* Create user modal */}
       {createOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center z-50 p-4 pt-12 sm:pt-4 overflow-y-auto">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto my-auto">
             <h3 className="text-white font-bold text-lg mb-4">Crear nuevo usuario</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
