@@ -116,8 +116,8 @@ export default function ChargerMap({ chargers, height = '100%' }: Props) {
           onClick={() => setSelected(null)}
         >
           <div
-            className="w-full max-w-sm rounded-t-3xl p-6 pb-10"
-            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}
+            className="w-full max-w-sm rounded-t-3xl p-6"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Status dot + name */}
