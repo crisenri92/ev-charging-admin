@@ -176,6 +176,55 @@ function ChargerCard({ c, onEdit, onLocation, onDelete }: {
   )
 }
 
+
+function QrModal({ charger, onClose }: { charger: Charger; onClose: () => void }) {
+  const [dataUrl, setDataUrl] = useState('')
+  const url = `https://recargat.app/mobile?charger=${charger.id}`
+
+  useEffect(() => {
+    import('qrcode').then((QRCode) => {
+      QRCode.toDataURL(url, { width: 400, margin: 2, color: { dark: '#ffffff', light: '#111827' } })
+        .then(setDataUrl)
+        .catch(console.error)
+    })
+  }, [url])
+
+  const handleDownload = () => {
+    const a = document.createElement('a')
+    a.href = dataUrl
+    a.download = `QR-${charger.name || charger.id}.png`
+    a.click()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold text-white">QR Cargador</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+        <p className="text-sm text-gray-300 mb-0.5">{charger.name || charger.id}</p>
+        <p className="text-xs text-gray-500 mb-4 break-all font-mono">{url}</p>
+        {dataUrl ? (
+          <img src={dataUrl} alt="QR" className="w-full rounded-lg" />
+        ) : (
+          <div className="w-full h-64 bg-gray-800 rounded-lg animate-pulse" />
+        )}
+        <p className="text-xs text-gray-500 text-center mt-3 mb-3">
+          Imprime y pega este QR en el cargador. Al escanearlo, el usuario llega directo a esta estación.
+        </p>
+        <button
+          onClick={handleDownload}
+          disabled={!dataUrl}
+          className="w-full py-2.5 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          Descargar PNG para imprimir
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function ChargersPage() {
   const [chargers, setChargers] = useState<Charger[]>([])
   const [loading, setLoading] = useState(true)
@@ -446,6 +495,7 @@ export default function ChargersPage() {
           </div>
         </div>
       )}
+      {qrTarget && <QrModal charger={qrTarget} onClose={() => setQrTarget(null)} />}
       {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
       {qrTarget && <ChargerQRModal chargerId={qrTarget.id} chargerName={qrTarget.name || qrTarget.id} onClose={() => setQrTarget(null)} />}
       {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
