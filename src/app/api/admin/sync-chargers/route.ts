@@ -4,7 +4,19 @@ import { createClient } from '@supabase/supabase-js'
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const OCPP_URL = process.env.OCPP_SERVER_URL || 'https://ev-charging-csms-production.up.railway.app'
 
+async function verifyAdmin(req: NextRequest): Promise<boolean> {
+  const headerToken = req.headers.get('x-admin-token')
+  if (headerToken && headerToken === process.env.ADMIN_SECRET) return true
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const cookieToken = cookieStore.get('admin_token')?.value
+  return cookieToken === process.env.ADMIN_SECRET
+}
+
 export async function GET(req: NextRequest) {
+  if (!(await verifyAdmin(req))) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
   try {
     const res = await fetch(`${OCPP_URL}/api/chargers`, { next: { revalidate: 0 } })
     if (!res.ok) return NextResponse.json({ error: 'OCPP server error' }, { status: 502 })
