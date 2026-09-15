@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
@@ -36,6 +36,23 @@ export async function requireAuth() {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) throw apiError('No autorizado', 401)
   return { user, supabase }
+}
+
+/**
+ * Verifies auth from Bearer token (Authorization header) or cookie.
+ * Use this in API routes called from the mobile app.
+ */
+export async function requireAuthFromRequest(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
+  const bearerToken = authHeader?.replace('Bearer ', '').trim()
+  const cookieStore = await cookies()
+  const cookieToken = cookieStore.get('sb-access-token')?.value
+  const accessToken = bearerToken || cookieToken
+  if (!accessToken) throw apiError('No autorizado', 401)
+  const supabase = supabaseAdmin()
+  const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+  if (error || !user) throw apiError('No autorizado', 401)
+  return { user }
 }
 
 /** Admin client with service role key (bypasses RLS). */
