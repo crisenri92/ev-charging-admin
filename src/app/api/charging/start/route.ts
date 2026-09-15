@@ -1,22 +1,38 @@
 /**
  * POST /api/charging/start
  * Inicia una sesión de carga.
- * Si hay autorización Deuna la usa; si no, valida saldo de wallet.
+ * Admite Bearer token (mobile) y cookie (dashboard).
+ * Verifica que el cargador esté disponible antes de crear la sesión (Bug 7).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { requireAuthFromRequest, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 
-
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
-
     const { user } = await requireAuthFromRequest(req)
     const supabase = supabaseAdmin()
+
+    // Bug 7 fix: verify charger exists AND is available before doing anything
+    const { data: charger, error: chargerError } = await supabase
+      .from('chargers')
+      .select('id, name, status, price_per_kwh')
+      .eq('id', chargerId)
+      .single()
+
+    if (chargerError || !charger) {
+      return NextResponse.json({ error: 'Charger not found' }, { status: 404 })
+    }
+
+    if ((charger.status || '').toLowerCase() !== 'available') {
+      return NextResponse.json(
+        { error: 'Charger not available', status: charger.status },
+        { status: 409 }
+      )
+    }
 
     const repo = getPaymentRepository()
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
@@ -43,21 +59,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data: charger } = await supabase
-      .from('chargers')
-      .select('id, name, price_per_kwh')
-      .eq('id', chargerId)
-      .single()
-
     const { price: dynamicPrice, ruleName } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const pricePerKwh = dynamicPrice || charger?.price_per_kwh || 0.15
+    const pricePerKwh = dynamicPrice || charger.price_per_kwh || 0.15
 
     const { data: session, error } = await supabase
       .from('charging_sessions')
       .insert({
         user_id: user.id,
         charger_id: chargerId,
-        charger_name: charger?.name || chargerId,
+        charger_name: charger.name || chargerId,
         status: 'active',
         started_at: new Date().toISOString(),
       })
@@ -83,13 +93,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       sessionId: session.id,
       balance,
-      chargerName: charger?.name,
+      chargerName: charger.name,
       pricePerKwh,
       pricingRule: ruleName,
       paymentMethod,
       authorized: !!authorization,
     })
   } catch (err: any) {
+    if (err instanceof Response) return err
     console.error('[Charging Start] Error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
