@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase'
 
 const db = () => supabaseAdmin()
+
+async function verifyAdmin(req: NextRequest): Promise<boolean> {
+  const headerToken = req.headers.get('x-admin-token')
+  if (headerToken && headerToken === process.env.ADMIN_SECRET) return true
+  const cookieStore = await cookies()
+  const cookieToken = cookieStore.get('admin_token')?.value
+  return cookieToken === process.env.ADMIN_SECRET
+}
 
 export async function GET() {
   const { data, error } = await db().from('pricing_rules').select('*').order('priority', { ascending: false })
@@ -10,6 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await verifyAdmin(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json()
   const { data, error } = await db().from('pricing_rules').insert({
     name: body.name,
@@ -25,6 +35,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!(await verifyAdmin(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json()
   const { id, ...updates } = body
   const { data, error } = await db().from('pricing_rules')
@@ -35,6 +46,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await verifyAdmin(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { id } = await req.json()
   const { error } = await db().from('pricing_rules').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
