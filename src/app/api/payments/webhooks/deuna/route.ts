@@ -10,9 +10,15 @@ import { getPaymentRepository } from '@/lib/database/payment-repository';
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Obtener headers y body
+    // 1. Obtener headers y body (raw text necesario para verificación HMAC)
     const headers = Object.fromEntries(req.headers);
-    const body = await req.json();
+    const rawBody = await req.text();
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
 
 
     // 2. Procesar webhook usando el gateway
@@ -23,7 +29,7 @@ export async function POST(req: NextRequest) {
       webhookEvent = await gateway.handleWebhook(
         PaymentProvider.DEUNA,
         headers,
-        body
+        rawBody  // pass raw string so HMAC verification uses exact bytes
       );
     } catch (error: any) {
       console.error('[Deuna Webhook] Invalid webhook:', error);
