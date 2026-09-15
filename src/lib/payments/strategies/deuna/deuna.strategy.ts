@@ -203,9 +203,18 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
   }
 
   /**
-   * Valida la autenticidad de un webhook de Deuna
+   * Valida la autenticidad de un webhook de Deuna.
+   *
+   * Verificación en capas:
+   * 1. Si DEUNA_WEBHOOK_SECRET está configurado, verifica firma HMAC-SHA256
+   *    en el header x-deuna-signature (o x-webhook-signature).
+   * 2. En cualquier caso, verifica que el body tenga los campos requeridos.
+   *
+   * Para activar la verificación de firma, agrega DEUNA_WEBHOOK_SECRET
+   * en las variables de entorno y configura el mismo secreto en el portal de Deuna.
    */
   validateWebhook(headers: Record<string, string>, body: any): boolean {
+    // 1. Verificar campos requeridos
     const hasRequiredFields = !!(
       body.status &&
       body.idTransaction &&
@@ -216,6 +225,50 @@ export class DeunaPaymentStrategy implements IPaymentStrategy {
     if (!hasRequiredFields) {
       console.warn('[DeunaStrategy] Webhook validation failed: missing required fields');
       return false;
+    }
+
+    // 2. Verificar firma HMAC-SHA256 si el secreto está configurado
+    const webhookSecret = process.env.DEUNA_WEBHOOK_SECRET || process.env.DEUNA_API_SECRET;
+    if (webhookSecret) {
+      const signature =
+        headers['x-deuna-signature'] ||
+        headers['x-webhook-signature'] ||
+        headers['x-signature'];
+
+      if (!signature) {
+        console.warn('[DeunaStrategy] Webhook rejected: no signature header but DEUNA_WEBHOOK_SECRET is set');
+        return false;
+      }
+
+      // Compute HMAC-SHA256 of the raw body string
+      try {
+        const crypto = require('crypto');
+        const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+        const expected = crypto
+          .createHmac('sha256', webhookSecret)
+          .update(bodyStr)
+          .digest('hex');
+
+        const sigToCompare = signature.startsWith('sha256=') ? signature.slice(7) : signature;
+        const isValid = crypto.timingSafeEqual(
+          Buffer.from(expected, 'hex'),
+          Buffer.from(sigToCompare, 'hex')
+        );
+
+        if (!isValid) {
+          console.warn('[DeunaStrategy] Webhook rejected: invalid HMAC signature');
+          return false;
+        }
+
+        console.log('[DeunaStrategy] Webhook signature verified ✅');
+      } catch (err) {
+        console.error('[DeunaStrategy] Signature verification error:', err);
+        return false;
+      }
+    } else {
+      // No secret configured — log a warning but allow through
+      // Set DEUNA_WEBHOOK_SECRET in env vars to enable signature verification
+      console.warn('[DeunaStrategy] ⚠️ No DEUNA_WEBHOOK_SECRET configured — webhook not cryptographically verified');
     }
 
     return true;
