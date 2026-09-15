@@ -4,8 +4,9 @@
  * Si hay autorización Deuna la usa; si no, valida saldo de wallet.
  */
 
-import { NextRequest } from 'next/server'
-import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { requireAuthFromRequest, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 
@@ -13,10 +14,9 @@ import { getPaymentRepository } from '@/lib/database/payment-repository'
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
-    const cookieStore = await cookies()
 
-      const { user } = await requireAuth()
-      const supabase = supabaseAdmin()
+    const { user } = await requireAuthFromRequest(req)
+    const supabase = supabaseAdmin()
 
     const repo = getPaymentRepository()
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
