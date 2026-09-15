@@ -61,7 +61,7 @@ function ReserveModal({ charger, onConfirm, onCancel, loading }: {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="text-3xl mb-3">ð</div>
+        <div className="text-3xl mb-3">{'🕐'}</div>
         <h2 className="text-xl font-bold text-white mb-1">Reservar cargador</h2>
         <p className="text-gray-400 text-sm mb-5">{charger.name || charger.id}</p>
         <p className="text-gray-500 text-xs mb-3">¿Cuánto tiempo necesitas?</p>
@@ -90,7 +90,7 @@ function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => v
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="w-16 h-16 rounded-full bg-green-900/60 border-2 border-green-500 flex items-center justify-center text-3xl mx-auto mb-4">â¡</div>
+        <div className="w-16 h-16 rounded-full bg-green-900/60 border-2 border-green-500 flex items-center justify-center text-3xl mx-auto mb-4">{'⚡'}</div>
         <h2 className="text-xl font-bold text-white mb-1">¡Carga iniciada!</h2>
         <p className="text-gray-400 text-sm mb-5">Tu sesión está activa</p>
         <div className="bg-gray-800 rounded-2xl p-4 text-left space-y-3 mb-5">
@@ -112,7 +112,7 @@ function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
-        <div className="text-4xl mb-3">ð·</div>
+        <div className="text-4xl mb-3">{'📷'}</div>
         <h2 className="text-xl font-bold text-white mb-1">Cargador detectado</h2>
         <p className="text-gray-400 text-sm mb-4">Escaneaste el código QR de:</p>
         <div className="bg-gray-800 rounded-xl p-3 mb-4">
@@ -150,7 +150,7 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${isReservedByMe ? 'bg-blue-900/40' : available ? 'bg-green-900/40' : 'bg-gray-800'}`}>
-            {isReservedByMe ? 'ð' : 'â¡'}
+            {isReservedByMe ? '\uD83D\uDD16' : '\u26A1'}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -466,7 +466,7 @@ function MobileContent() {
           {myReservations.map(res => (
             <div key={res.id} className="bg-blue-900/20 border border-blue-800/40 rounded-2xl px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="text-blue-400 text-xs font-semibold">ð Reserva activa</p>
+                <p className="text-blue-400 text-xs font-semibold">{'🔖'} Reserva activa</p>
                 <p className="text-white text-sm font-medium mt-0.5">{res.charger_name}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -565,7 +565,7 @@ function MobileContent() {
 
           {available.length === 0 && (
             <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
-              <p className="text-3xl mb-3">ð</p>
+              <p className="text-3xl mb-3">{'🔌'}</p>
               <p className="text-white font-medium mb-1">Sin cargadores disponibles</p>
               <p className="text-gray-500 text-sm">El sistema verifica automáticamente cada 15 segundos</p>
             </div>
