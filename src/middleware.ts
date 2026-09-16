@@ -1,29 +1,62 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Routes that require admin token (dashboard + admin API routes)
-const ADMIN_API_PATHS = [
-  '/api/chargers',
-  '/api/pricing',
-  '/api/admin',
+// Admin-only dashboard pages (everything else is public or mobile)
+const ADMIN_PAGE_PREFIXES = [
+  '/dashboard',
+  '/chargers',
+  '/users',
+  '/pricing',
+  '/sessions',
+  '/audit',
+  '/historial',
+  '/vouchers',
+  '/wallet',
 ]
 
-// Public API routes that skip auth (mobile auth handled per-route, webhooks are signed)
+// Admin API routes that require admin token
+const ADMIN_API_PATHS = [
+  '/api/admin',
+  '/api/chargers',
+  '/api/pricing/rules',
+  '/api/vouchers',
+]
+
+// API routes that are fully public or handle their own auth
 const PUBLIC_API_PREFIXES = [
-  '/api/csms',        // OCPP webhook (has its own secret)
-  '/api/auth',        // auth endpoints
-  '/api/wallet',      // mobile: requireAuthFromRequest per route
-  '/api/charging',    // mobile: requireAuthFromRequest per route
-  '/api/reservations',// mobile: requireAuthFromRequest per route
-  '/api/pricing',     // GET pricing is public (POST is admin)
+  '/api/csms',
+  '/api/auth',
+  '/api/wallet',
+  '/api/charging',
+  '/api/reservations',
+  '/api/pricing',       // GET is public; rules/ is protected above
+  '/api/payments',
+  '/api/push',
 ]
 
 export function middleware(request: NextRequest) {
-  const { pathname, method } = request.nextUrl as any
-  const _method = request.method
+  const { pathname } = request.nextUrl
+  const method = request.method
 
-  // Allow Next.js internals and static assets through
-  if (pathname.startsWith('/_next') || pathname.startsWith('/favicon')) {
+  // Always allow Next.js internals and static assets
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/icon-') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.webmanifest')
+  ) {
+    return NextResponse.next()
+  }
+
+  // Public pages — always accessible
+  if (
+    pathname === '/' ||           // welcome page (user/admin selector)
+    pathname === '/login' ||
+    pathname === '/forgot-password' ||
+    pathname.startsWith('/mobile') // mobile app handles its own Supabase auth
+  ) {
     return NextResponse.next()
   }
 
@@ -33,15 +66,12 @@ export function middleware(request: NextRequest) {
     (adminCookie && adminCookie === process.env.ADMIN_SECRET) ||
     (adminHeader && adminHeader === process.env.ADMIN_SECRET)
 
-  // Admin API routes: require admin auth
+  // API routes
   if (pathname.startsWith('/api/')) {
-    const isPublicApi = PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p))
+    // Pricing rules — admin only (GET is allowed, writes are protected at route level)
+    // Admin API paths — block without token
     const isAdminApi = ADMIN_API_PATHS.some(p => pathname.startsWith(p))
-
-    // GET /api/pricing is public; POST/DELETE requires admin
-    if (pathname.startsWith('/api/pricing') && _method === 'GET') {
-      return NextResponse.next()
-    }
+    const isPublicApi = PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p))
 
     if (isAdminApi && !isPublicApi) {
       if (!isAdminAuthed) {
@@ -51,13 +81,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Dashboard pages: require admin auth
-  if (pathname === '/login') return NextResponse.next()
-
-  if (!isAdminAuthed) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Admin dashboard pages — require admin token
+  const isAdminPage = ADMIN_PAGE_PREFIXES.some(p => pathname.startsWith(p))
+  if (isAdminPage) {
+    if (!isAdminAuthed) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    return NextResponse.next()
   }
 
+  // Everything else: allow through
   return NextResponse.next()
 }
 
