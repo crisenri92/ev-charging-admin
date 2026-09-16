@@ -39,22 +39,23 @@ export async function requireAuth() {
 }
 
 /**
- * Verifies auth from Bearer token (Authorization header) OR cookie.
- * Use this for routes called by the mobile app.
+ * Verifies auth from Bearer token (mobile) OR cookies (web).
+ * Use this in API routes that must support both mobile and web clients.
  */
 export async function requireAuthFromRequest(req: NextRequest) {
-  const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined
-
-  const cookieStore = await cookies()
-  const cookieToken = cookieStore.get('sb-access-token')?.value
-
-  const accessToken = bearerToken || cookieToken
-  if (!accessToken) throw apiError('No autorizado', 401)
-
-  const supabase = supabaseAdmin()
-  const { data: { user }, error } = await supabase.auth.getUser(accessToken)
-  if (error || !user) throw apiError('No autorizado', 401)
+  const authHeader = req.headers.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.replace('Bearer ', '')
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) throw apiError('No autorizado', 401)
+    return { user }
+  }
+  // Fallback to cookie-based auth
+  const { user } = await requireAuth()
   return { user }
 }
 
@@ -77,9 +78,6 @@ export function requireWebhookSecret(req: Request) {
 }
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
-//
-// Uses an in-memory Map. Works correctly on Railway (persistent containers).
-// For serverless deployments (Vercel/Lambda), replace with Redis/Upstash.
 
 const _rlMap = new Map<string, { count: number; resetAt: number }>()
 
@@ -89,12 +87,6 @@ export function checkRateLimit(key: string, limit = 10): boolean {
   const entry = _rlMap.get(key)
   if (!entry || entry.resetAt < now) {
     _rlMap.set(key, { count: 1, resetAt: now + 60_000 })
-    // Prune old entries periodically to avoid memory leaks
-    if (_rlMap.size > 10_000) {
-      for (const [k, v] of _rlMap) {
-        if (v.resetAt < now) _rlMap.delete(k)
-      }
-    }
     return true
   }
   if (entry.count >= limit) return false
