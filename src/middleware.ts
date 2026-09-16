@@ -22,78 +22,43 @@ const ADMIN_API_PATHS = [
   '/api/vouchers',
 ]
 
-// API routes that are fully public or handle their own auth
-const PUBLIC_API_PREFIXES = [
-  '/api/csms',
-  '/api/auth',
-  '/api/wallet',
-  '/api/charging',
-  '/api/reservations',
-  '/api/pricing',       // GET is public; rules/ is protected above
-  '/api/payments',
-  '/api/push',
-]
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const method = request.method
 
-  // Always allow Next.js internals and static assets
+  // Always allow: welcome page, login, forgot-password, mobile app
   if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    pathname.startsWith('/icon-') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.webmanifest')
-  ) {
-    return NextResponse.next()
-  }
-
-  // Public pages — always accessible
-  if (
-    pathname === '/' ||           // welcome page (user/admin selector)
+    pathname === '/' ||
     pathname === '/login' ||
     pathname === '/forgot-password' ||
-    pathname.startsWith('/mobile') // mobile app handles its own Supabase auth
+    pathname.startsWith('/mobile')
   ) {
     return NextResponse.next()
   }
 
-  const adminCookie = request.cookies.get('admin_token')?.value
-  const adminHeader = request.headers.get('x-admin-token')
-  const isAdminAuthed =
-    (adminCookie && adminCookie === process.env.ADMIN_SECRET) ||
-    (adminHeader && adminHeader === process.env.ADMIN_SECRET)
-
-  // API routes
+  // API routes: only protect ADMIN_API_PATHS with admin token
   if (pathname.startsWith('/api/')) {
-    // Pricing rules — admin only (GET is allowed, writes are protected at route level)
-    // Admin API paths — block without token
     const isAdminApi = ADMIN_API_PATHS.some(p => pathname.startsWith(p))
-    const isPublicApi = PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p))
-
-    if (isAdminApi && !isPublicApi) {
-      if (!isAdminAuthed) {
+    if (isAdminApi) {
+      const adminToken = request.cookies.get('admin_token')?.value
+      if (!adminToken || adminToken !== process.env.ADMIN_SECRET) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
       }
     }
     return NextResponse.next()
   }
 
-  // Admin dashboard pages — require admin token
+  // Admin dashboard pages: require admin token
   const isAdminPage = ADMIN_PAGE_PREFIXES.some(p => pathname.startsWith(p))
   if (isAdminPage) {
-    if (!isAdminAuthed) {
+    const adminToken = request.cookies.get('admin_token')?.value
+    if (!adminToken || adminToken !== process.env.ADMIN_SECRET) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
-    return NextResponse.next()
   }
 
-  // Everything else: allow through
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!_next|favicon.ico|manifest\.json|sw\.js|icon-|.*\.png|.*\.svg|.*\.webmanifest).*)'],
+  matcher: ['/((?!_next|favicon\.ico|manifest\.json|sw\.js|icon-|.*\.png|.*\.svg|.*\.webmanifest).*)'],
 }
