@@ -1,11 +1,12 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from '@/components/Toast'
-import dynamic from 'next/dynamic'
-const ChargerQRModal = dynamic(() => import('@/components/ChargerQRModal'), { ssr: false })
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-const OCPP_WS_URL = 'wss://ev-charging-csms-production.up.railway.app/dashboard'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface Charger {
   id: string
@@ -21,11 +22,11 @@ interface Charger {
 
 function StatusBadge({ status }: { status: string | null }) {
   const map: Record<string, { label: string; dot: string; cls: string }> = {
-    Available:   { label: 'Disponible',    dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-    Charging:    { label: 'Cargando',      dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
-    Faulted:     { label: 'Falla',         dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
-    Offline:     { label: 'Offline',       dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
-    Unavailable: { label: 'No disponible', dot: 'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+    Available:  { label: 'Disponible', dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+    Charging:   { label: 'Cargando',   dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+    Faulted:    { label: 'Falla',       dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
+    Offline:    { label: 'Offline',     dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+    Unavailable:{ label: 'No disponible',dot:'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
   }
   const s = status ?? 'Offline'
   const m = map[s] ?? map['Offline']
@@ -34,6 +35,46 @@ function StatusBadge({ status }: { status: string | null }) {
       <span className={`w-1.5 h-1.5 rounded-full ${m.dot} ${s === 'Charging' ? 'animate-pulse' : ''}`} />
       {m.label}
     </span>
+  )
+}
+
+function QrModal({ charger, onClose }: { charger: Charger; onClose: () => void }) {
+  const qrData = `https://recargat.app/mobile?charger=${encodeURIComponent(charger.id)}`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`
+  const label = charger.name || charger.id
+
+  const download = async () => {
+    const resp = await fetch(qrUrl)
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-${charger.id}.png`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">QR Cargador</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+        <p className="text-sm text-gray-400 mb-4 text-center">{label}</p>
+        <div className="flex justify-center mb-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrUrl} alt={`QR ${label}`} className="rounded-lg border border-gray-700 w-56 h-56" />
+        </div>
+        <p className="text-xs text-gray-500 text-center mb-5 break-all">{qrData}</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cerrar</button>
+          <button onClick={download} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium">
+            Descargar PNG
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -47,7 +88,7 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
       name: form.name || null,
       price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
     }).eq('id', charger.id)
-    toast('Cargador actualizado')
+      toast('Cargador actualizado')
     setSaving(false)
     onSave()
     onClose()
@@ -56,7 +97,7 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-white">Editar Cargador</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
@@ -133,194 +174,21 @@ function LocationModal({ charger, onClose, onSave }: { charger: Charger; onClose
   )
 }
 
-// Mobile card for a single charger
-function ChargerCard({ c, onEdit, onLocation, onDelete }: {
-  c: Charger
-  onEdit: () => void
-  onLocation: () => void
-  onDelete: () => void
-}) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-white text-sm">{c.name || c.id}</p>
-          {c.name && <p className="text-xs text-gray-500 mt-0.5 font-mono">{c.id}</p>}
-        </div>
-        <StatusBadge status={c.status} />
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div>
-          <span className="text-gray-500 uppercase tracking-wide text-[10px]">Precio/kWh</span>
-          <p className="text-gray-300 mt-0.5">{c.price_per_kwh ? `$${c.price_per_kwh.toFixed(2)}` : '—'}</p>
-        </div>
-        <div>
-          <span className="text-gray-500 uppercase tracking-wide text-[10px]">Ubicación</span>
-          <p className="text-gray-300 mt-0.5">
-            {c.latitude ? `${c.latitude.toFixed(4)}, ${c.longitude?.toFixed(4)}` : <span className="text-gray-600">Sin coords</span>}
-          </p>
-        </div>
-        {c.firmware && (
-          <div className="col-span-2">
-            <span className="text-gray-500 uppercase tracking-wide text-[10px]">Firmware</span>
-            <p className="text-gray-400 mt-0.5 text-[11px]">{c.firmware}</p>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button onClick={onEdit} className="flex-1 text-xs py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors">Editar</button>
-        <button onClick={onLocation} className="flex-1 text-xs py-2 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-lg border border-gray-700 transition-colors">Ubicación</button>
-        <button onClick={onDelete} className="flex-1 text-xs py-2 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-lg border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
-      </div>
-    </div>
-  )
-}
-
-
-function QrModal({ charger, onClose }: { charger: Charger; onClose: () => void }) {
-  const [dataUrl, setDataUrl] = useState('')
-  const url = `https://recargat.app/mobile?charger=${charger.id}`
-
-  useEffect(() => {
-    import('qrcode').then((QRCode) => {
-      QRCode.toDataURL(url, { width: 400, margin: 2, color: { dark: '#ffffff', light: '#111827' } })
-        .then(setDataUrl)
-        .catch(console.error)
-    })
-  }, [url])
-
-  const handleDownload = () => {
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `QR-${charger.name || charger.id}.png`
-    a.click()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold text-white">QR Cargador</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
-        </div>
-        <p className="text-sm text-gray-300 mb-0.5">{charger.name || charger.id}</p>
-        <p className="text-xs text-gray-500 mb-4 break-all font-mono">{url}</p>
-        {dataUrl ? (
-          <img src={dataUrl} alt="QR" className="w-full rounded-lg" />
-        ) : (
-          <div className="w-full h-64 bg-gray-800 rounded-lg animate-pulse" />
-        )}
-        <p className="text-xs text-gray-500 text-center mt-3 mb-3">
-          Imprime y pega este QR en el cargador. Al escanearlo, el usuario llega directo a esta estación.
-        </p>
-        <button
-          onClick={handleDownload}
-          disabled={!dataUrl}
-          className="w-full py-2.5 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          Descargar PNG para imprimir
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function ChargersPage() {
   const [chargers, setChargers] = useState<Charger[]>([])
   const [loading, setLoading] = useState(true)
-  const [wsConnected, setWsConnected] = useState(false)
   const [editTarget, setEditTarget] = useState<Charger | null>(null)
-  const [qrTarget, setQrTarget] = useState<Charger | null>(null)
   const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [startingCharge, setStartingCharge] = useState<string | null>(null)
-  const [insufficientBalance, setInsufficientBalance] = useState<number | null>(null)
+  const [qrTarget, setQrTarget] = useState<Charger | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [newId, setNewId] = useState('')
   const [adding, setAdding] = useState(false)
-  const wsRef = useRef<WebSocket | null>(null)
-  const handleStartCharge = async (chargerId: string) => {
-    setStartingCharge(chargerId)
-    try {
-      const res = await fetch('/api/charging/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chargerId })
-      })
-      const data = await res.json()
-      if (res.status === 402) {
-        setInsufficientBalance(data.balance ?? 0)
-        return
-      }
-      if (!res.ok) {
-        toast(data.error || 'Error al iniciar carga')
-        return
-      }
-      toast(`Carga iniciada! Saldo: $${data.balance?.toFixed(2)}`)
-    } catch {
-      toast('Error de conexión')
-    } finally {
-      setStartingCharge(null)
-    }
-  }
-
 
   const fetchChargers = useCallback(async () => {
     const { data } = await supabase.from('chargers').select('*').order('created_at')
     setChargers(data ?? [])
     setLoading(false)
-  }, [])
-
-  // WebSocket real-time connection to OCPP server
-  useEffect(() => {
-    let ws: WebSocket
-    let reconnectTimeout: ReturnType<typeof setTimeout>
-
-    const connect = () => {
-      try {
-        ws = new WebSocket(OCPP_WS_URL)
-        wsRef.current = ws
-
-        ws.onopen = () => setWsConnected(true)
-
-        ws.onmessage = (e) => {
-          try {
-            const { event, data } = JSON.parse(e.data)
-            if (event === 'charger_updated' || event === 'charger_connected') {
-              setChargers(prev => prev.map(c =>
-                c.id === data.id || c.id === data.id?.replace(/_/g, '').toUpperCase()
-                  ? { ...c, status: data.status ?? c.status }
-                  : c
-              ))
-            }
-            if (event === 'charger_disconnected') {
-              setChargers(prev => prev.map(c => {
-                if (c.id === data.id || c.id === data.id?.replace(/_/g, '').toUpperCase()) {
-                  if (c.status === 'Available' || c.status === 'Charging') {
-                    toast(`⚠️ Cargador ${data.id ?? c.id} se desconectó`, 'error')
-                  }
-                  return { ...c, status: 'Offline' }
-                }
-                return c
-              }))
-            }
-          } catch { /* ignore parse errors */ }
-        }
-
-        ws.onclose = () => {
-          setWsConnected(false)
-          reconnectTimeout = setTimeout(connect, 5000)
-        }
-
-        ws.onerror = () => ws.close()
-      } catch { /* ignore connection errors */ }
-    }
-
-    connect()
-    return () => {
-      clearTimeout(reconnectTimeout)
-      ws?.close()
-    }
   }, [])
 
   useEffect(() => { fetchChargers() }, [fetchChargers])
@@ -335,16 +203,12 @@ export default function ChargersPage() {
   const handleAdd = async () => {
     if (!newId.trim()) return
     setAdding(true)
-    const { error } = await supabase.from('chargers').insert({ id: newId.trim(), status: 'Offline' })
-    if (error) {
-      toast('Error al agregar cargador', 'error')
-    } else {
-      toast('Cargador agregado')
-      setNewId('')
-      setShowAdd(false)
-      fetchChargers()
-    }
+    await supabase.from('chargers').insert({ id: newId.trim(), status: 'Offline' })
+    toast('Cargador agregado')
+    setNewId('')
+    setShowAdd(false)
     setAdding(false)
+    fetchChargers()
   }
 
   return (
@@ -353,41 +217,15 @@ export default function ChargersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-white">Cargadores</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-sm text-gray-400">{chargers.length} cargador{chargers.length !== 1 ? 'es' : ''} registrado{chargers.length !== 1 ? 's' : ''}</p>
-            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${wsConnected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-gray-500/10 text-gray-500 border border-gray-700'}`}>
-              <span className={`w-1 h-1 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
-              {wsConnected ? 'En vivo' : 'Offline'}
-            </span>
-          </div>
+          <p className="text-sm text-gray-400 mt-0.5">{chargers.length} cargador{chargers.length !== 1 ? 'es' : ''} registrado{chargers.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
           + Agregar cargador
         </button>
       </div>
 
-      {/* Mobile: card list */}
-      <div className="md:hidden space-y-3">
-        {loading ? (
-          [1,2,3].map(i => <div key={i} className="h-36 bg-gray-800 rounded-xl animate-pulse" />)
-        ) : chargers.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
-            <p className="font-medium text-gray-400 mb-1">No hay cargadores</p>
-            <p className="text-sm">Agrega tu primer cargador para comenzar</p>
-          </div>
-        ) : chargers.map(c => (
-          <ChargerCard
-            key={c.id}
-            c={c}
-            onEdit={() => setEditTarget(c)}
-            onLocation={() => setLocationTarget(c)}
-            onDelete={() => setDeleteTarget(c.id)}
-          />
-        ))}
-      </div>
-
-      {/* Desktop: table */}
-      <div className="hidden md:block bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
+      {/* Table */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl shadow overflow-x-auto">
         {loading ? (
           <div className="p-8 space-y-3">
             {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-800 rounded-lg animate-pulse" />)}
@@ -423,23 +261,11 @@ export default function ChargersPage() {
                   </td>
                   <td className="px-4 py-3.5 text-xs text-gray-500">{c.firmware ?? <span className="text-gray-600">—</span>}</td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center flex-wrap gap-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button onClick={() => setEditTarget(c)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md border border-gray-700 transition-colors">Editar</button>
-                      <button onClick={() => setQrTarget(c)} className="text-xs px-2.5 py-1 bg-purple-800 hover:bg-purple-700 text-white rounded-md border border-purple-700 transition-colors">QR</button>
-                      <button onClick={() => setLocationTarget(c)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors">
-                        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='w-3 h-3'><path fillRule='evenodd' d='M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.083 3.964-5.129 3.964-8.827a8.25 8.25 0 00-16.5 0c0 3.698 2.02 6.744 3.964 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z' clipRule='evenodd' /></svg>
-                        Ubicación
-                      </button>
-                      {c.status === 'Available' && (
-                          <button
-                            onClick={() => handleStartCharge(c.id)}
-                            disabled={startingCharge === c.id}
-                            className="text-xs px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-md border border-blue-500/30 transition-colors disabled:opacity-50"
-                          >
-                            {startingCharge === c.id ? '...' : 'Iniciar Carga'}
-                          </button>
-                        )}
-                        <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
+                      <button onClick={() => setLocationTarget(c)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 rounded-md border border-gray-700 transition-colors"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='w-3 h-3'><path fillRule='evenodd' d='M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.083 3.964-5.129 3.964-8.827a8.25 8.25 0 00-16.5 0c0 3.698 2.02 6.744 3.964 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.144.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z' clipRule='evenodd' /></svg>Ubicación</button>
+                      <button onClick={() => setQrTarget(c)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-violet-400 rounded-md border border-gray-700 transition-colors"><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' className='w-3 h-3'><path fillRule='evenodd' d='M3 4.875C3 3.839 3.84 3 4.875 3h4.5C10.41 3 11.25 3.84 11.25 4.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 013 9.375v-4.5zM4.875 4.5a.375.375 0 00-.375.375v4.5c0 .207.168.375.375.375h4.5a.375.375 0 00.375-.375v-4.5a.375.375 0 00-.375-.375h-4.5zm7.875.375C12.75 3.839 13.59 3 14.625 3h4.5C20.16 3 21 3.84 21 4.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5a1.875 1.875 0 01-1.875-1.875v-4.5zm1.875-.375a.375.375 0 00-.375.375v4.5c0 .207.168.375.375.375h4.5a.375.375 0 00.375-.375v-4.5a.375.375 0 00-.375-.375h-4.5zM6 6.75A.75.75 0 016.75 6h.75a.75.75 0 010 1.5h-.75A.75.75 0 016 6.75zm9.75 0A.75.75 0 0116.5 6h.75a.75.75 0 010 1.5h-.75a.75.75 0 01-.75-.75zM3 14.625C3 13.589 3.84 12.75 4.875 12.75h4.5c1.036 0 1.875.84 1.875 1.875v4.5A1.875 1.875 0 019.375 21h-4.5A1.875 1.875 0 013 19.125v-4.5zm1.875-.375a.375.375 0 00-.375.375v4.5c0 .207.168.375.375.375h4.5a.375.375 0 00.375-.375v-4.5a.375.375 0 00-.375-.375h-4.5zm6.75.375a.75.75 0 01.75-.75H13.5a.75.75 0 010 1.5h-1.125a.75.75 0 01-.75-.75zm4.875 0a.75.75 0 01.75-.75h.75a.75.75 0 010 1.5h-.75a.75.75 0 01-.75-.75zM6 16.5a.75.75 0 01.75-.75h.75a.75.75 0 010 1.5h-.75A.75.75 0 016 16.5zm10.5 0a.75.75 0 01.75-.75h.75a.75.75 0 010 1.5h-.75a.75.75 0 01-.75-.75zm-3 3a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75z' clipRule='evenodd' /></svg>QR</button>
+                      <button onClick={() => setDeleteTarget(c.id)} className="text-xs px-2.5 py-1 bg-gray-800 hover:bg-red-900/40 text-red-400 rounded-md border border-gray-700 hover:border-red-500/30 transition-colors">Eliminar</button>
                     </div>
                   </td>
                 </tr>
@@ -476,28 +302,16 @@ export default function ChargersPage() {
             <p className="text-sm text-gray-400 mb-6">Esta acción no se puede deshacer. El cargador <span className="text-white font-mono">{deleteTarget}</span> será eliminado permanentemente.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
-              <button onClick={() => handleDelete(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">Eliminar</button>
+              <button onClick={() => handleDelete(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">
+                Eliminar
+              </button>
             </div>
           </div>
         </div>
       )}
 
-
-      {insufficientBalance !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-gray-900 rounded-2xl p-6 mx-4 max-w-sm w-full border border-gray-700">
-            <h3 className="text-lg font-bold text-white mb-2">Saldo insuficiente</h3>
-            <p className="text-gray-400 mb-4">Tu saldo actual es ${insufficientBalance?.toFixed(2)}. Recarga para continuar.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setInsufficientBalance(null)} className="flex-1 py-2 px-4 rounded-lg border border-gray-600 text-gray-300">Cancelar</button>
-              <a href="/wallet" className="flex-1 py-2 px-4 rounded-lg bg-green-600 text-white text-center font-medium">Recargar saldo</a>
-            </div>
-          </div>
-        </div>
-      )}
       {qrTarget && <QrModal charger={qrTarget} onClose={() => setQrTarget(null)} />}
       {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
-      {qrTarget && <ChargerQRModal chargerId={qrTarget.id} chargerName={qrTarget.name || qrTarget.id} onClose={() => setQrTarget(null)} />}
       {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
     </div>
   )
