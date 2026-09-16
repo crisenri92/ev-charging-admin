@@ -1,40 +1,24 @@
 /**
  * POST /api/charging/start
  * Inicia una sesión de carga.
- * Admite Bearer token (mobile) y cookie (dashboard).
- * Verifica que el cargador esté disponible antes de crear la sesión (Bug 7).
+ * Busca autorización activa o valida saldo de wallet.
+ * Envía RemoteStartTransaction al CSMS OCPP.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuthFromRequest, supabaseAdmin, apiError } from '@/lib/api-helpers'
+import { requireAuthFromRequest, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
+
+const OCPP_URL = process.env.OCPP_SERVER_URL || 'https://ev-charging-csms-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
     const { user } = await requireAuthFromRequest(req)
     const supabase = supabaseAdmin()
-
-    // Bug 7 fix: verify charger exists AND is available before doing anything
-    const { data: charger, error: chargerError } = await supabase
-      .from('chargers')
-      .select('id, name, status, price_per_kwh')
-      .eq('id', chargerId)
-      .single()
-
-    if (chargerError || !charger) {
-      return NextResponse.json({ error: 'Charger not found' }, { status: 404 })
-    }
-
-    if ((charger.status || '').toLowerCase() !== 'available') {
-      return NextResponse.json(
-        { error: 'Charger not available', status: charger.status },
-        { status: 409 }
-      )
-    }
-
     const repo = getPaymentRepository()
+
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
 
     let paymentMethod = 'wallet'
@@ -46,7 +30,6 @@ export async function POST(req: NextRequest) {
       await repo.useAuthorization(authorization.id, '')
     } else {
       console.log('[Charging Start] Using wallet payment')
-
       const { data: balanceRow } = await supabase
         .from('user_balances')
         .select('balance')
@@ -59,15 +42,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { price: dynamicPrice, ruleName } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const pricePerKwh = dynamicPrice || charger.price_per_kwh || 0.15
+    const { data: charger } = await supabase
+      .from('chargers')
+      .select('id, name, price_per_kwh')
+      .eq('id', chargerId)
+      .single()
 
+    const { price: dynamicPrice, ruleName } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const pricePerKwh = dynamicPrice || charger?.price_per_kwh || 0.15
+
+    // Crear sesión en Supabase
     const { data: session, error } = await supabase
       .from('charging_sessions')
       .insert({
         user_id: user.id,
         charger_id: chargerId,
-        charger_name: charger.name || chargerId,
+        charger_name: charger?.name || chargerId,
         status: 'active',
         started_at: new Date().toISOString(),
       })
@@ -90,17 +80,40 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .eq('status', 'active')
 
+    // Enviar RemoteStartTransaction al CSMS OCPP (no bloqueante)
+    try {
+      const ocppRes = await fetch(`${OCPP_URL}/api/chargers/${chargerId}/remote-start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.CSMS_WEBHOOK_SECRET}`,
+        },
+        body: JSON.stringify({
+          sessionId: session.id,
+          userId: user.id,
+          connectorId: 1,
+        }),
+      })
+      if (!ocppRes.ok) {
+        console.warn(`[Charging Start] OCPP RemoteStart returned ${ocppRes.status}`)
+      } else {
+        console.log('[Charging Start] OCPP RemoteStart sent successfully')
+      }
+    } catch (ocppErr) {
+      // No bloqueante: la sesión ya está creada en BD
+      console.error('[Charging Start] OCPP RemoteStart failed (non-fatal):', ocppErr)
+    }
+
     return NextResponse.json({
       sessionId: session.id,
       balance,
-      chargerName: charger.name,
+      chargerName: charger?.name,
       pricePerKwh,
       pricingRule: ruleName,
       paymentMethod,
       authorized: !!authorization,
     })
   } catch (err: any) {
-    if (err instanceof Response) return err
     console.error('[Charging Start] Error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
