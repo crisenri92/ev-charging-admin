@@ -6,7 +6,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthFromRequest, supabaseAdmin, apiError, checkRateLimit } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
-import { initializePaymentGateway, PaymentContext, PaymentProvider } from '@/lib/payments'
+import { initializePaymentGateway } from '@/lib/payments'
+// Import types from core directly to avoid transitive dependency failures (e.g. Stripe SDK missing)
+import { PaymentContext, PaymentProvider } from '@/lib/payments/core/payment-types'
 
 export async function POST(req: NextRequest) {
   try {
@@ -128,6 +130,8 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error: any) {
+    // Pass through auth errors (requireAuthFromRequest throws a NextResponse on 401)
+    if (error instanceof Response) return error
     console.error('[Charging Initiate] Error:', error)
     return NextResponse.json({ error: 'Error interno del servidor', detail: error.message }, { status: 500 })
   }
