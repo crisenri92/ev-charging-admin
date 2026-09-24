@@ -19,6 +19,7 @@ interface Session {
   ended_at: string | null
   energy_kwh: number | null
   cost: number | null
+  amount_charged: number | null
   user_id: string | null
   transaction_id: string | null
 }
@@ -71,6 +72,8 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [forceStoppingId, setForceStoppingId] = useState<string | null>(null)
+  const [forceStopMsg, setForceStopMsg] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -85,6 +88,35 @@ export default function SessionsPage() {
     }
     load()
   }, [])
+
+  async function handleForceStop(sessionId: string) {
+    if (!confirm('¿Cerrar forzosamente esta sesión y restaurar el saldo?')) return
+    setForceStoppingId(sessionId)
+    setForceStopMsg('')
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      const res = await fetch(`/api/admin/sessions/${sessionId}/force-stop`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authSession?.access_token}` },
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setForceStopMsg(`Error: ${json.error}`)
+      } else {
+        setForceStopMsg('Sesión cerrada y saldo restaurado.')
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === sessionId ? { ...s, ended_at: new Date().toISOString() } : s
+          )
+        )
+      }
+    } catch (e: any) {
+      setForceStopMsg(`Error: ${e.message}`)
+    } finally {
+      setForceStoppingId(null)
+      setTimeout(() => setForceStopMsg(''), 5000)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -104,6 +136,12 @@ export default function SessionsPage() {
       <Suspense fallback={null}>
         <SuccessBanner />
       </Suspense>
+
+      {forceStopMsg && (
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
+          {forceStopMsg}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300">
@@ -150,7 +188,7 @@ CREATE POLICY anon_select_sessions ON charging_sessions
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700/50">
-                {['Cargador', 'Inicio', 'Duración', 'kWh', 'Monto', 'Estado'].map(h => (
+                {['Cargador', 'Inicio', 'Duración', 'kWh', 'Monto', 'Estado', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
                 ))}
               </tr>
@@ -164,6 +202,17 @@ CREATE POLICY anon_select_sessions ON charging_sessions
                   <td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : '—'}</td>
                   <td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
                   <td className="px-4 py-3"><StatusPill ended={s.ended_at} /></td>
+                  <td className="px-4 py-3">
+                    {!s.ended_at && (
+                      <button
+                        onClick={() => handleForceStop(s.id)}
+                        disabled={forceStoppingId === s.id}
+                        className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {forceStoppingId === s.id ? 'Deteniendo…' : 'Force Stop'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -186,6 +235,17 @@ CREATE POLICY anon_select_sessions ON charging_sessions
                 <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</p></div>
                 <div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</p></div>
               </div>
+              {!s.ended_at && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => handleForceStop(s.id)}
+                    disabled={forceStoppingId === s.id}
+                    className="w-full rounded-lg bg-red-600/20 border border-red-500/40 py-2 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {forceStoppingId === s.id ? 'Deteniendo…' : '⏹ Force Stop'}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
