@@ -23,10 +23,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Código agotado' }, { status: 410 })
   }
 
-  const { data: existing } = await db.from('voucher_redemptions')
-    .select('id').eq('voucher_id', voucher.id).eq('user_id', user.id).single()
-  if (existing) return NextResponse.json({ error: 'Ya canjeaste este código' }, { status: 409 })
+  // FIX C-1: Atomic guard against race conditions (double-tap / concurrent requests).
+  // INSERT with ON CONFLICT DO NOTHING — the UNIQUE(voucher_id, user_id) constraint
+  // ensures only one request wins, even if two arrive simultaneously.
+  // ignoreDuplicates:true generates: INSERT ... ON CONFLICT (voucher_id,user_id) DO NOTHING
+  const { data: inserted, error: insertError } = await db
+    .from('voucher_redemptions')
+    .upsert(
+      { voucher_id: voucher.id, user_id: user.id, amount: Number(voucher.amount) },
+      { onConflict: 'voucher_id,user_id', ignoreDuplicates: true }
+    )
+    .select()
 
+  if (insertError) {
+    return NextResponse.json({ error: 'Error interno al registrar canje' }, { status: 500 })
+  }
+
+  if (!inserted || inserted.length === 0) {
+    // Unique constraint fired: this user already redeemed this voucher
+    return NextResponse.json({ error: 'Ya canjeaste este código' }, { status: 409 })
+  }
+
+  // INSERT succeeded — safe to credit balance (only one request reaches here per user+voucher)
   const { data: balanceRow } = await db.from('user_balances').select('balance').eq('user_id', user.id).single()
   const currentBalance = balanceRow?.balance || 0
   const newBalance = parseFloat((currentBalance + Number(voucher.amount)).toFixed(2))
@@ -37,7 +55,6 @@ export async function POST(req: NextRequest) {
     description: `Voucher canjeado: ${voucher.code}${voucher.description ? ' — ' + voucher.description : ''}`,
     balance_after: newBalance, reference_id: voucher.id,
   })
-  await db.from('voucher_redemptions').insert({ voucher_id: voucher.id, user_id: user.id, amount: Number(voucher.amount) })
   await db.from('vouchers').update({ uses_count: voucher.uses_count + 1 }).eq('id', voucher.id)
 
   return NextResponse.json({ ok: true, amount: Number(voucher.amount), newBalance, description: voucher.description })
