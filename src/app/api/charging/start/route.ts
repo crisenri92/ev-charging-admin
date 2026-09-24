@@ -2,13 +2,14 @@
  * POST /api/charging/start
  * Inicia una sesión de carga.
  * Busca autorización activa o valida saldo de wallet.
- * Envía RemoteStartTransaction al CSMS OCPP.
+ * Envía RemoteStartTransaction al CSMS OCPP (con retry).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthFromRequest, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 const OCPP_URL = process.env.OCPP_SERVER_URL || 'https://ev-charging-csms-production.up.railway.app'
 
@@ -16,9 +17,18 @@ export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
     const { user } = await requireAuthFromRequest(req)
+
+    // Rate limiting: 5 requests per minute per user
+    const rl = checkRateLimit(`rl:start:${user.id}`, 5, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'too_many_requests', retryIn: Math.ceil(rl.resetIn / 1000) },
+        { status: 429 }
+      )
+    }
+
     const supabase = supabaseAdmin()
     const repo = getPaymentRepository()
-
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
 
     let paymentMethod = 'wallet'
@@ -30,6 +40,7 @@ export async function POST(req: NextRequest) {
       await repo.useAuthorization(authorization.id, '')
     } else {
       console.log('[Charging Start] Using wallet payment')
+
       const { data: balanceRow } = await supabase
         .from('user_balances')
         .select('balance')
@@ -51,7 +62,6 @@ export async function POST(req: NextRequest) {
     const { price: dynamicPrice, ruleName } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const pricePerKwh = dynamicPrice || charger?.price_per_kwh || 0.15
 
-    // Crear sesión en Supabase
     const { data: session, error } = await supabase
       .from('charging_sessions')
       .insert({
@@ -80,29 +90,31 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .eq('status', 'active')
 
-    // Enviar RemoteStartTransaction al CSMS OCPP (no bloqueante)
-    try {
-      const ocppRes = await fetch(`${OCPP_URL}/api/chargers/${chargerId}/remote-start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.CSMS_WEBHOOK_SECRET}`,
-        },
-        body: JSON.stringify({
-          sessionId: session.id,
-          userId: user.id,
-          connectorId: 1,
-        }),
-      })
-      if (!ocppRes.ok) {
-        console.warn(`[Charging Start] OCPP RemoteStart returned ${ocppRes.status}`)
-      } else {
-        console.log('[Charging Start] OCPP RemoteStart sent successfully')
+    // OCPP RemoteStart con retry (no bloqueante)
+    ;(async () => {
+      const MAX_RETRIES = 3
+      const RETRY_DELAY_MS = 1000
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const ocppRes = await fetch(`${OCPP_URL}/api/chargers/${chargerId}/remote-start`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.CSMS_WEBHOOK_SECRET}`,
+            },
+            body: JSON.stringify({ sessionId: session.id, userId: user.id, connectorId: 1 }),
+          })
+          if (ocppRes.ok) {
+            console.log(`[Charging Start] OCPP RemoteStart OK (attempt ${attempt})`)
+            break
+          }
+          console.warn(`[Charging Start] OCPP attempt ${attempt} returned ${ocppRes.status}`)
+        } catch (err) {
+          console.error(`[Charging Start] OCPP attempt ${attempt} failed:`, err)
+        }
+        if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt))
       }
-    } catch (ocppErr) {
-      // No bloqueante: la sesión ya está creada en BD
-      console.error('[Charging Start] OCPP RemoteStart failed (non-fatal):', ocppErr)
-    }
+    })()
 
     return NextResponse.json({
       sessionId: session.id,
