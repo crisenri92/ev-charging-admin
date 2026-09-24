@@ -51,7 +51,7 @@ export default function DashboardPage() {
         const charging = chargers?.filter(c => c.status === 'Charging').length ?? 0
         const offline = chargers?.filter(c => c.status === 'Offline' || c.status === 'Unavailable').length ?? 0
 
-        // Try sessions table
+        // Try sessions table (limit to 50 most recent for performance)
         let totalKwh: number | null = null
         let monthRevenue: number | null = null
         let hasSessions = false
@@ -62,6 +62,7 @@ export default function DashboardPage() {
             .from('charging_sessions')
             .select('energy_kwh, cost, started_at')
             .gte('started_at', firstDay)
+            .limit(50)
           if (!error && sessions) {
             hasSessions = true
             totalKwh = sessions.reduce((a, s) => a + (s.energy_kwh ?? 0), 0)
@@ -74,7 +75,7 @@ export default function DashboardPage() {
         setLoading(false)
       }
     }
-    // Sync OCPP status to Supabase, then fetch stats
+
     const fetchMapChargers = async () => {
       const { data } = await supabase.from('chargers').select('id, name, status, latitude, longitude')
       if (data) {
@@ -85,16 +86,26 @@ export default function DashboardPage() {
       }
     }
 
-    const syncAndFetch = async () => {
-      await fetch('/api/admin/sync-chargers').catch(() => {})
-      await Promise.all([fetchStats(), fetchMapChargers()])
-    }
-    syncAndFetch()
+    // Initial load: sync charger status fire-and-forget, then fetch data
+    fetch('/api/admin/sync-chargers').catch(() => {})
+    Promise.all([fetchStats(), fetchMapChargers()])
 
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(syncAndFetch, 30000)
-    return () => clearInterval(interval)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Subscribe to real-time changes instead of polling every 30 seconds
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chargers' }, () => {
+        fetchStats()
+        fetchMapChargers()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'charging_sessions' }, () => {
+        fetchStats()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cards = [
