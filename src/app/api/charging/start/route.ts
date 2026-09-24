@@ -10,6 +10,7 @@ import { requireAuthFromRequest, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit-log'
 
 const OCPP_URL = process.env.OCPP_SERVER_URL || 'https://ev-charging-csms-production.up.railway.app'
 
@@ -75,6 +76,14 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Audit log: record charging session start (fire-and-forget)
+    logAuditEvent(user.id, 'charging.start', 'charging_session', session.id, {
+      chargerId,
+      chargerName: charger?.name,
+      paymentMethod,
+      pricePerKwh,
+    })
 
     if (authorization) {
       await supabase
