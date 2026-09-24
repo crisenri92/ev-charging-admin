@@ -16,11 +16,11 @@ interface Charger {
 
 function StatusBadge({ status }: { status: string | null }) {
   const map: Record<string, { label: string; dot: string; cls: string }> = {
-    Available:   { label: 'Disponible',     dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-    Charging:    { label: 'Cargando',       dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
-    Faulted:     { label: 'Falla',          dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
-    Offline:     { label: 'Offline',        dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
-    Unavailable: { label: 'No disponible',  dot: 'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+    Available: { label: 'Disponible', dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+    Charging: { label: 'Cargando', dot: 'bg-blue-400', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+    Faulted: { label: 'Falla', dot: 'bg-red-400', cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
+    Offline: { label: 'Offline', dot: 'bg-gray-400', cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+    Unavailable: { label: 'No disponible', dot: 'bg-orange-400', cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
   }
   const s = status ?? 'Offline'
   const m = map[s] ?? map['Offline']
@@ -34,15 +34,15 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function QrModal({ charger, onClose }: { charger: Charger; onClose: () => void }) {
   const qrData = `https://recargat.app/mobile?charger=${encodeURIComponent(charger.id)}`
-  const qrUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`
-  const label  = charger.name || charger.id
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`
+  const label = charger.name || charger.id
 
   const download = async () => {
     const resp = await fetch(qrUrl)
     const blob = await resp.blob()
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
     a.download = `qr-${charger.id}.png`
     a.click()
     URL.revokeObjectURL(url)
@@ -78,19 +78,28 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
 
   const save = async () => {
     setSaving(true)
-    // C-4 fix: mutations go through server-side API route, not direct Supabase client
-    await fetch(`/api/admin/chargers/${charger.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name || null,
-        price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
-      }),
-    })
-    toast('Cargador actualizado')
-    setSaving(false)
-    onSave()
-    onClose()
+    try {
+      const res = await fetch(`/api/admin/chargers/${charger.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name || null,
+          price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast(data.error || 'Error al actualizar el cargador', 'error')
+        return
+      }
+      toast('Cargador actualizado')
+      onSave()
+      onClose()
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -174,19 +183,19 @@ function LocationModal({ charger, onClose, onSave }: { charger: Charger; onClose
 }
 
 export default function ChargersPage() {
-  const [chargers, setChargers]       = useState<Charger[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [editTarget, setEditTarget]   = useState<Charger | null>(null)
+  const [chargers, setChargers] = useState<Charger[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editTarget, setEditTarget] = useState<Charger | null>(null)
   const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [qrTarget, setQrTarget]       = useState<Charger | null>(null)
-  const [showAdd, setShowAdd]         = useState(false)
-  const [newId, setNewId]             = useState('')
-  const [adding, setAdding]           = useState(false)
+  const [qrTarget, setQrTarget] = useState<Charger | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [newId, setNewId] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
-  // C-4 fix: reads go through server-side API route (auth validated server-side)
   const fetchChargers = useCallback(async () => {
-    const res  = await fetch('/api/admin/chargers')
+    const res = await fetch('/api/admin/chargers')
     const data = await res.json()
     setChargers(Array.isArray(data) ? data : [])
     setLoading(false)
@@ -194,28 +203,48 @@ export default function ChargersPage() {
 
   useEffect(() => { fetchChargers() }, [fetchChargers])
 
-  // C-4 fix: delete goes through server-side API route
   const handleDelete = async (id: string) => {
-    await fetch(`/api/admin/chargers/${id}`, { method: 'DELETE' })
-    toast('Cargador eliminado')
-    setDeleteTarget(null)
-    fetchChargers()
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/chargers/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast(data.error || 'Error al eliminar el cargador', 'error')
+        return
+      }
+      toast('Cargador eliminado')
+      setDeleteTarget(null)
+      fetchChargers()
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
-  // C-4 fix: insert goes through server-side API route
   const handleAdd = async () => {
     if (!newId.trim()) return
     setAdding(true)
-    await fetch('/api/admin/chargers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: newId.trim(), status: 'Offline' }),
-    })
-    toast('Cargador agregado')
-    setNewId('')
-    setShowAdd(false)
-    setAdding(false)
-    fetchChargers()
+    try {
+      const res = await fetch('/api/admin/chargers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: newId.trim(), status: 'Offline' }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast(data.error || 'Error al agregar el cargador', 'error')
+        return
+      }
+      toast('Cargador agregado')
+      setNewId('')
+      setShowAdd(false)
+      fetchChargers()
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (
@@ -308,17 +337,17 @@ export default function ChargersPage() {
             <h2 className="text-lg font-semibold text-white mb-2">¿Eliminar cargador?</h2>
             <p className="text-sm text-gray-400 mb-6">Esta acción no se puede deshacer. El cargador <span className="text-white font-mono">{deleteTarget}</span> será eliminado permanentemente.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
-              <button onClick={() => handleDelete(deleteTarget)} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium">
-                Eliminar
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg text-sm border border-gray-700">Cancelar</button>
+              <button onClick={() => handleDelete(deleteTarget)} disabled={deleting} className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium">
+                {deleting ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {qrTarget      && <QrModal       charger={qrTarget}       onClose={() => setQrTarget(null)} />}
-      {editTarget    && <EditModal     charger={editTarget}     onClose={() => setEditTarget(null)}   onSave={fetchChargers} />}
+      {qrTarget && <QrModal charger={qrTarget} onClose={() => setQrTarget(null)} />}
+      {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
       {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
     </div>
   )
