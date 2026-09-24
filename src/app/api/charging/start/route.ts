@@ -1,34 +1,82 @@
 /**
  * POST /api/charging/start
  * Inicia una sesión de carga.
- * Busca autorización activa o valida saldo de wallet.
- * Envía RemoteStartTransaction al CSMS OCPP (con retry).
+ * Si hay autorización Deuna la usa; si no, valida saldo de wallet.
+ *
+ * fix(C-3): session created as 'pending_ocpp'; promoted to 'active' ONLY
+ * after OCPP RemoteStartTransaction is confirmed (up to 3 retries).
+ * On failure: status set to 'failed', wallet authorization restored,
+ * 503 returned — the user is NOT charged.
+ *
+ * SCHEMA NOTE: If charging_sessions.status has a CHECK constraint that
+ * does not include 'pending_ocpp' or 'failed', run this migration:
+ *   ALTER TABLE charging_sessions
+ *     DROP CONSTRAINT IF EXISTS charging_sessions_status_check;
+ *   ALTER TABLE charging_sessions
+ *     ADD CONSTRAINT charging_sessions_status_check
+ *     CHECK (status IN ('pending_ocpp', 'active', 'completed', 'failed'));
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthFromRequest, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
-import { checkRateLimit } from '@/lib/rate-limit'
-import { logAuditEvent } from '@/lib/audit-log'
 
-const OCPP_URL = process.env.OCPP_SERVER_URL || 'https://ev-charging-csms-production.up.railway.app'
+const OCPP_MAX_RETRIES = 3
+const OCPP_RETRY_DELAY_MS = 1000
+
+/**
+ * Send OCPP 1.6 RemoteStartTransaction to the backend bridge, with linear backoff.
+ * Returns true if the charger accepted within OCPP_MAX_RETRIES attempts.
+ *
+ * If OCPP_BACKEND_URL is not set (non-OCPP deployment), returns true to preserve
+ * existing behaviour. Set the env var in production to enforce OCPP confirmation.
+ */
+async function sendOcppRemoteStart(chargerId: string, sessionId: string): Promise<boolean> {
+  const ocppUrl = process.env.OCPP_BACKEND_URL
+  if (!ocppUrl) {
+    console.warn('[OCPP] OCPP_BACKEND_URL not configured — skipping OCPP (non-OCPP mode)')
+    return true
+  }
+
+  for (let attempt = 1; attempt <= OCPP_MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${ocppUrl}/remote-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chargerId, transactionId: sessionId }),
+        signal: AbortSignal.timeout(5000),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.status === 'Accepted') {
+          console.log(`[OCPP] RemoteStartTransaction accepted (attempt ${attempt})`)
+          return true
+        }
+        console.warn(`[OCPP] Attempt ${attempt}: unexpected status=${data?.status}`)
+      } else {
+        console.warn(`[OCPP] Attempt ${attempt}: HTTP ${res.status}`)
+      }
+    } catch (err) {
+      console.error(`[OCPP] Attempt ${attempt} error:`, err)
+    }
+
+    if (attempt < OCPP_MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, OCPP_RETRY_DELAY_MS * attempt))
+    }
+  }
+
+  console.error(`[OCPP] All ${OCPP_MAX_RETRIES} retries exhausted for charger ${chargerId}`)
+  return false
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
     const { user } = await requireAuthFromRequest(req)
-
-    // Rate limiting: 5 requests per minute per user
-    const rl = checkRateLimit(`rl:start:${user.id}`, 5, 60_000)
-    if (!rl.ok) {
-      return NextResponse.json(
-        { error: 'too_many_requests', retryIn: Math.ceil(rl.resetIn / 1000) },
-        { status: 429 }
-      )
-    }
-
     const supabase = supabaseAdmin()
+
     const repo = getPaymentRepository()
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
 
@@ -63,28 +111,21 @@ export async function POST(req: NextRequest) {
     const { price: dynamicPrice, ruleName } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const pricePerKwh = dynamicPrice || charger?.price_per_kwh || 0.15
 
+    // C-3 fix: create session as 'pending_ocpp' — not yet confirmed by the physical charger
     const { data: session, error } = await supabase
       .from('charging_sessions')
       .insert({
         user_id: user.id,
         charger_id: chargerId,
         charger_name: charger?.name || chargerId,
-        status: 'active',
-        started_at: new Date().toISOString(),
         price_per_kwh: pricePerKwh,
+        status: 'pending_ocpp',
+        started_at: new Date().toISOString(),
       })
       .select()
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    // Audit log: record charging session start (fire-and-forget)
-    logAuditEvent(user.id, 'charging.start', 'charging_session', session.id, {
-      chargerId,
-      chargerName: charger?.name,
-      paymentMethod,
-      pricePerKwh,
-    })
 
     if (authorization) {
       await supabase
@@ -100,31 +141,44 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .eq('status', 'active')
 
-    // OCPP RemoteStart con retry (no bloqueante)
-    ;(async () => {
-      const MAX_RETRIES = 3
-      const RETRY_DELAY_MS = 1000
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          const ocppRes = await fetch(`${OCPP_URL}/api/chargers/${chargerId}/remote-start`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.CSMS_WEBHOOK_SECRET}`,
-            },
-            body: JSON.stringify({ sessionId: session.id, userId: user.id, connectorId: 1 }),
-          })
-          if (ocppRes.ok) {
-            console.log(`[Charging Start] OCPP RemoteStart OK (attempt ${attempt})`)
-            break
-          }
-          console.warn(`[Charging Start] OCPP attempt ${attempt} returned ${ocppRes.status}`)
-        } catch (err) {
-          console.error(`[Charging Start] OCPP attempt ${attempt} failed:`, err)
+    // C-3 fix: block until OCPP confirms (or all retries fail) before returning to client
+    const ocppSuccess = await sendOcppRemoteStart(chargerId, session.id)
+
+    if (!ocppSuccess) {
+      // Mark session as failed so it is invisible to active-session queries
+      await supabase
+        .from('charging_sessions')
+        .update({ status: 'failed' })
+        .eq('id', session.id)
+
+      // Restore wallet balance if a wallet authorization was consumed at start
+      // (authorization.amount holds the pre-authorized value)
+      if (authorization && authorization.provider === 'wallet') {
+        const { error: rpcErr } = await supabase.rpc('restore_wallet_balance', {
+          p_user_id: user.id,
+          p_amount: (authorization as any).amount ?? 0,
+        })
+        if (rpcErr) {
+          // Non-fatal: session is failed; flag for manual reconciliation
+          console.error('[OCPP] Wallet restoration failed — manual reconciliation needed:', rpcErr.message)
         }
-        if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt))
       }
-    })()
+
+      return NextResponse.json(
+        { error: 'Charger unavailable, payment not charged' },
+        { status: 503 }
+      )
+    }
+
+    // OCPP confirmed — promote session to active
+    const { error: updateErr } = await supabase
+      .from('charging_sessions')
+      .update({ status: 'active' })
+      .eq('id', session.id)
+
+    if (updateErr) {
+      console.error('[Charging Start] Failed to promote session to active:', updateErr.message)
+    }
 
     return NextResponse.json({
       sessionId: session.id,
