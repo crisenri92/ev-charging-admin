@@ -1,12 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from '@/components/Toast'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 interface Charger {
   id: string
@@ -22,11 +16,11 @@ interface Charger {
 
 function StatusBadge({ status }: { status: string | null }) {
   const map: Record<string, { label: string; dot: string; cls: string }> = {
-    Available:  { label: 'Disponible', dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-    Charging:   { label: 'Cargando',   dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
-    Faulted:    { label: 'Falla',       dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
-    Offline:    { label: 'Offline',     dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
-    Unavailable:{ label: 'No disponible',dot:'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+    Available:   { label: 'Disponible',     dot: 'bg-emerald-400', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+    Charging:    { label: 'Cargando',       dot: 'bg-blue-400',    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+    Faulted:     { label: 'Falla',          dot: 'bg-red-400',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
+    Offline:     { label: 'Offline',        dot: 'bg-gray-400',    cls: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+    Unavailable: { label: 'No disponible',  dot: 'bg-orange-400',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
   }
   const s = status ?? 'Offline'
   const m = map[s] ?? map['Offline']
@@ -40,15 +34,15 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function QrModal({ charger, onClose }: { charger: Charger; onClose: () => void }) {
   const qrData = `https://recargat.app/mobile?charger=${encodeURIComponent(charger.id)}`
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`
-  const label = charger.name || charger.id
+  const qrUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`
+  const label  = charger.name || charger.id
 
   const download = async () => {
     const resp = await fetch(qrUrl)
     const blob = await resp.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
     a.download = `qr-${charger.id}.png`
     a.click()
     URL.revokeObjectURL(url)
@@ -84,11 +78,16 @@ function EditModal({ charger, onClose, onSave }: { charger: Charger; onClose: ()
 
   const save = async () => {
     setSaving(true)
-    await supabase.from('chargers').update({
-      name: form.name || null,
-      price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
-    }).eq('id', charger.id)
-      toast('Cargador actualizado')
+    // C-4 fix: mutations go through server-side API route, not direct Supabase client
+    await fetch(`/api/admin/chargers/${charger.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: form.name || null,
+        price_per_kwh: form.price_per_kwh ? Number(form.price_per_kwh) : null,
+      }),
+    })
+    toast('Cargador actualizado')
     setSaving(false)
     onSave()
     onClose()
@@ -175,35 +174,43 @@ function LocationModal({ charger, onClose, onSave }: { charger: Charger; onClose
 }
 
 export default function ChargersPage() {
-  const [chargers, setChargers] = useState<Charger[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editTarget, setEditTarget] = useState<Charger | null>(null)
+  const [chargers, setChargers]       = useState<Charger[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [editTarget, setEditTarget]   = useState<Charger | null>(null)
   const [locationTarget, setLocationTarget] = useState<Charger | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [qrTarget, setQrTarget] = useState<Charger | null>(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [newId, setNewId] = useState('')
-  const [adding, setAdding] = useState(false)
+  const [qrTarget, setQrTarget]       = useState<Charger | null>(null)
+  const [showAdd, setShowAdd]         = useState(false)
+  const [newId, setNewId]             = useState('')
+  const [adding, setAdding]           = useState(false)
 
+  // C-4 fix: reads go through server-side API route (auth validated server-side)
   const fetchChargers = useCallback(async () => {
-    const { data } = await supabase.from('chargers').select('*').order('created_at')
-    setChargers(data ?? [])
+    const res  = await fetch('/api/admin/chargers')
+    const data = await res.json()
+    setChargers(Array.isArray(data) ? data : [])
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchChargers() }, [fetchChargers])
 
+  // C-4 fix: delete goes through server-side API route
   const handleDelete = async (id: string) => {
-    await supabase.from('chargers').delete().eq('id', id)
+    await fetch(`/api/admin/chargers/${id}`, { method: 'DELETE' })
     toast('Cargador eliminado')
     setDeleteTarget(null)
     fetchChargers()
   }
 
+  // C-4 fix: insert goes through server-side API route
   const handleAdd = async () => {
     if (!newId.trim()) return
     setAdding(true)
-    await supabase.from('chargers').insert({ id: newId.trim(), status: 'Offline' })
+    await fetch('/api/admin/chargers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: newId.trim(), status: 'Offline' }),
+    })
     toast('Cargador agregado')
     setNewId('')
     setShowAdd(false)
@@ -310,8 +317,8 @@ export default function ChargersPage() {
         </div>
       )}
 
-      {qrTarget && <QrModal charger={qrTarget} onClose={() => setQrTarget(null)} />}
-      {editTarget && <EditModal charger={editTarget} onClose={() => setEditTarget(null)} onSave={fetchChargers} />}
+      {qrTarget      && <QrModal       charger={qrTarget}       onClose={() => setQrTarget(null)} />}
+      {editTarget    && <EditModal     charger={editTarget}     onClose={() => setEditTarget(null)}   onSave={fetchChargers} />}
       {locationTarget && <LocationModal charger={locationTarget} onClose={() => setLocationTarget(null)} onSave={fetchChargers} />}
     </div>
   )
