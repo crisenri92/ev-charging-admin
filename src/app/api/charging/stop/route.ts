@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkRateLimit, supabaseAdmin } from '@/lib/api-helpers'
+import { requireAuthFromRequest, checkRateLimit, supabaseAdmin } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
-  // Validate webhook secret (called by CSMS)
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (!secret || secret !== process.env.CSMS_WEBHOOK_SECRET) {
+  // Authenticate user (mobile Bearer token or web cookie)
+  let user: any
+  try {
+    const auth = await requireAuthFromRequest(req)
+    user = auth.user
+  } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -23,13 +26,30 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { chargerId, sessionId, meterStart, meterStop, reason } = body
 
+    // Validate session ownership before stopping
+    if (sessionId) {
+      const { data: owned } = await supabase
+        .from('charging_sessions')
+        .select('id')
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+      if (!owned) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     // Find active session - by sessionId first, then by chargerId
     let sessionQuery = supabase.from('charging_sessions').select('*').eq('status', 'active')
     if (sessionId) {
       sessionQuery = sessionQuery.eq('id', sessionId)
     } else if (chargerId) {
       const normalizedId = (chargerId as string).replace(/_/g, '')
-      sessionQuery = sessionQuery.eq('charger_id', normalizedId).order('started_at', { ascending: false }).limit(1)
+      sessionQuery = sessionQuery
+        .eq('charger_id', normalizedId)
+        .eq('user_id', user.id)
+        .order('started_at', { ascending: false })
+        .limit(1)
     }
     const { data: sessions } = await sessionQuery
     if (!sessions || sessions.length === 0) {
