@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from '@/components/Toast'
 
 interface User {
   id: string
@@ -11,13 +12,12 @@ interface User {
   currency: string
 }
 
-type ToastType = { message: string; type: 'success' | 'error' }
-
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState<ToastType | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [resettingEmail, setResettingEmail] = useState<string | null>(null)
 
   // Balance modal
   const [balanceUser, setBalanceUser] = useState<User | null>(null)
@@ -31,11 +31,6 @@ export default function UsersPage() {
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<'client' | 'admin'>('client')
 
-  const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3500)
-  }
-
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     const res = await fetch('/api/admin/users')
@@ -48,60 +43,95 @@ export default function UsersPage() {
 
   const handleSaveBalance = async () => {
     if (!balanceUser || !amount) return
-    setSaving(true)
-    const res = await fetch('/api/admin/users/balance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: balanceUser.id, amount: parseFloat(amount), operation }),
-    })
-    const data = await res.json()
-    if (data.error) { showToast(data.error, 'error') } else {
-      showToast(`Saldo actualizado: $${data.newBalance?.toFixed(2)}`, 'success')
-      setBalanceUser(null)
-      fetchUsers()
+    if (operation === 'subtract' || operation === 'set') {
+      const label = operation === 'subtract' ? 'descontar' : 'establecer en'
+      const confirmed = window.confirm(
+        `¿Confirmar ${label} $${parseFloat(amount).toFixed(2)} para ${balanceUser.email}? Esta operación modificará el saldo directamente.`
+      )
+      if (!confirmed) return
     }
-    setSaving(false)
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/users/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: balanceUser.id, amount: parseFloat(amount), operation }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        toast(data.error, 'error')
+      } else {
+        toast(`Saldo actualizado: $${data.newBalance?.toFixed(2)}`, 'success')
+        setBalanceUser(null)
+        fetchUsers()
+      }
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    const res = await fetch('/api/admin/users/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: newEmail, password: newPassword, name: newName, role: newRole }),
-    })
-    const data = await res.json()
-    if (data.error) { showToast(data.error, 'error') } else {
-      showToast(`Usuario ${newEmail} creado`, 'success')
-      setCreateOpen(false)
-      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('client')
-      fetchUsers()
+    try {
+      const res = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, password: newPassword, name: newName, role: newRole }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        toast(data.error, 'error')
+      } else {
+        toast(`Usuario ${newEmail} creado`, 'success')
+        setCreateOpen(false)
+        setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('client')
+        fetchUsers()
+      }
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleResetPassword = async (email: string) => {
-    const res = await fetch('/api/admin/users/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    })
-    const data = await res.json()
-    if (data.error) showToast(data.error, 'error')
-    else showToast(`Link de recuperación enviado a ${email}`, 'success')
+    setResettingEmail(email)
+    try {
+      const res = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      if (data.error) toast(data.error, 'error')
+      else toast(`Link de recuperación enviado a ${email}`, 'success')
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setResettingEmail(null)
+    }
   }
 
   const handleDeleteUser = async (user: User) => {
     if (!confirm(`¿Eliminar usuario ${user.email}? Esta acción no se puede deshacer.`)) return
-    const res = await fetch('/api/admin/users/delete', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
-    })
-    const data = await res.json()
-    if (data.error) showToast(data.error, 'error')
-    else { showToast('Usuario eliminado', 'success'); fetchUsers() }
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/admin/users/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      })
+      const data = await res.json()
+      if (data.error) toast(data.error, 'error')
+      else { toast('Usuario eliminado', 'success'); fetchUsers() }
+    } catch {
+      toast('Error de red. Intenta de nuevo.', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const clients = users.filter(u => u.role !== 'admin')
@@ -109,13 +139,6 @@ export default function UsersPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
-          {toast.message}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -158,13 +181,17 @@ export default function UsersPage() {
                           className="text-xs px-2 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded">
                           Saldo
                         </button>
-                        <button onClick={() => handleResetPassword(user.email!)}
-                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded">
-                          Reset pwd
+                        <button
+                          onClick={() => handleResetPassword(user.email!)}
+                          disabled={resettingEmail === user.email}
+                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-50 text-white rounded">
+                          {resettingEmail === user.email ? 'Enviando...' : 'Reset pwd'}
                         </button>
-                        <button onClick={() => handleDeleteUser(user)}
-                          className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 text-white rounded">
-                          Eliminar
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={deleting}
+                          className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white rounded">
+                          {deleting ? '...' : 'Eliminar'}
                         </button>
                       </td>
                     </tr>
@@ -195,9 +222,11 @@ export default function UsersPage() {
                       <td className="px-4 py-3 text-white">{user.email}</td>
                       <td className="px-4 py-3 text-gray-400">{new Date(user.created_at).toLocaleDateString('es-EC')}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleResetPassword(user.email!)}
-                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded">
-                          Reset pwd
+                        <button
+                          onClick={() => handleResetPassword(user.email!)}
+                          disabled={resettingEmail === user.email}
+                          className="text-xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-50 text-white rounded">
+                          {resettingEmail === user.email ? 'Enviando...' : 'Reset pwd'}
                         </button>
                       </td>
                     </tr>
@@ -216,12 +245,17 @@ export default function UsersPage() {
             <h3 className="text-white font-bold text-lg mb-1">Gestionar saldo</h3>
             <p className="text-gray-400 text-sm mb-4">{balanceUser.email} · Saldo actual: <span className="text-green-400">${balanceUser.balance.toFixed(2)}</span></p>
             <div className="space-y-3">
-              <select value={operation} onChange={e => setOperation(e.target.value as any)}
+              <select value={operation} onChange={e => setOperation(e.target.value as 'add' | 'subtract' | 'set')}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm">
                 <option value="add">Agregar</option>
                 <option value="subtract">Descontar</option>
                 <option value="set">Establecer</option>
               </select>
+              {(operation === 'subtract' || operation === 'set') && (
+                <p className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded px-3 py-2">
+                  ⚠ Esta operación puede reducir el saldo. Se pedirá confirmación antes de guardar.
+                </p>
+              )}
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
                 placeholder="Monto en USD" />
@@ -251,7 +285,7 @@ export default function UsersPage() {
               <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500"
                 placeholder="Contraseña (mín. 8 caracteres) *" />
-              <select value={newRole} onChange={e => setNewRole(e.target.value as any)}
+              <select value={newRole} onChange={e => setNewRole(e.target.value as 'client' | 'admin')}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm">
                 <option value="client">Cliente (acceso app móvil)</option>
                 <option value="admin">Administrador (acceso dashboard)</option>
