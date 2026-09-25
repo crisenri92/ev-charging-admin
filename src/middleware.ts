@@ -11,7 +11,6 @@ const ADMIN_PAGE_PREFIXES = [
   '/audit',
   '/historial',
   '/vouchers',
-  '/wallet',
 ]
 
 // Admin API routes that require admin token
