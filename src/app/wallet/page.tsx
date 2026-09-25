@@ -178,23 +178,23 @@ function WalletContent() {
   }
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: '#0f172a' }}>
+    <div className="min-h-screen" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 
       {pendingPayment && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
-          <div className="bg-gray-900 w-full max-w-sm rounded-2xl p-4 border border-gray-700 overflow-y-auto max-h-[80vh]">
-            <div className="flex items-center justify-between mb-2">
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
+          <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
               <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
 
             {pendingPayment.qrCode && (
-              <div className="bg-white rounded-xl p-2 flex justify-center mb-3">
+              <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
                 <img
                   src={pendingPayment.qrCode}
                   alt="QR de pago Deuna"
-                  className="w-40 h-40 object-contain"
+                  className="w-56 h-56 object-contain"
                 />
               </div>
             )}
@@ -249,18 +249,29 @@ function WalletContent() {
         </div>
       )}
 
-      <div className="relative overflow-hidden px-4 pt-10 pb-8">
+      <div className="relative overflow-hidden px-4 pt-6 pb-8">
         <div className="absolute inset-0 bg-gradient-to-br from-green-700/40 via-green-800/20 to-transparent" />
-        <div className="relative text-center">
-          <p className="text-green-400/80 text-sm font-medium uppercase tracking-widest mb-2">Saldo disponible</p>
-          {loading
-            ? <div className="h-14 w-32 bg-gray-700/50 rounded-xl animate-pulse mx-auto" />
-            : <p className="text-6xl font-bold text-white tracking-tight">
-                <span className="text-3xl text-green-400 align-top mt-2 inline-block mr-1">$</span>
-                {balance?.toFixed(2)}
-              </p>
-          }
-          <p className="text-gray-500 text-xs mt-3">≈ {loading ? '—' : ((balance ?? 0) / 0.15).toFixed(0)} kWh de carga</p>
+        <div className="relative">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-4 active:opacity-70 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="text-sm font-medium">Volver</span>
+          </button>
+          <div className="text-center">
+            <p className="text-green-400/80 text-sm font-medium uppercase tracking-widest mb-2">Saldo disponible</p>
+            {loading
+              ? <div className="h-14 w-32 bg-gray-700/50 rounded-xl animate-pulse mx-auto" />
+              : <p className="text-6xl font-bold text-white tracking-tight">
+                  <span className="text-3xl text-green-400 align-top mt-2 inline-block mr-1">$</span>
+                  {balance?.toFixed(2)}
+                </p>
+            }
+            <p className="text-gray-500 text-xs mt-3">≈ {loading ? '—' : ((balance ?? 0) / 0.15).toFixed(0)} kWh de carga</p>
+          </div>
         </div>
       </div>
 
