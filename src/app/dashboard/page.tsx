@@ -16,22 +16,37 @@ interface DashboardStats {
 }
 
 const StatCard = ({
-  label, value, sub, gradient, border, text, glow, icon
+  label, value, sub, gradient, border, text, glow, icon, loading
 }: {
   label: string; value: string | number; sub?: string
   gradient: string; border: string; text: string; glow: string; icon: React.ReactNode
+  loading?: boolean
 }) => (
   <div className={`relative overflow-hidden rounded-2xl border ${border} bg-gradient-to-br ${gradient} p-5 shadow-lg ${glow}`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
+      <div className="flex-1 min-w-0">
         <p className="text-xs font-medium uppercase tracking-wider text-gray-400">{label}</p>
-        <p className={`mt-2 text-3xl font-bold ${text}`}>{value}</p>
-        {sub && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
+        {loading
+          ? <div className="mt-2 h-9 w-20 bg-white/10 rounded-lg animate-pulse" />
+          : <p className={`mt-2 text-3xl font-bold ${text}`}>{value}</p>
+        }
+        {sub && !loading && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
+        {loading && <div className="mt-1 h-3 w-24 bg-white/5 rounded animate-pulse" />}
       </div>
-      <div className={`rounded-xl border ${border} bg-black/20 p-2.5 ${text}`}>{icon}</div>
+      <div className={`rounded-xl border ${border} bg-black/20 p-2.5 ${text} opacity-${loading ? '40' : '100'}`}>{icon}</div>
     </div>
   </div>
 )
+
+function SkeletonStatCard({ gradient, border, glow }: { gradient: string; border: string; glow: string }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border ${border} bg-gradient-to-br ${gradient} p-5 shadow-lg ${glow}`}>
+      <div className="h-3 w-24 bg-white/10 rounded animate-pulse mb-3" />
+      <div className="h-9 w-20 bg-white/10 rounded-lg animate-pulse mb-2" />
+      <div className="h-3 w-16 bg-white/5 rounded animate-pulse" />
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -51,7 +66,7 @@ export default function DashboardPage() {
         const charging = chargers?.filter(c => c.status === 'Charging').length ?? 0
         const offline = chargers?.filter(c => c.status === 'Offline' || c.status === 'Unavailable').length ?? 0
 
-        // Try sessions table (limit to 50 most recent for performance)
+        // Try sessions table
         let totalKwh: number | null = null
         let monthRevenue: number | null = null
         let hasSessions = false
@@ -62,7 +77,6 @@ export default function DashboardPage() {
             .from('charging_sessions')
             .select('energy_kwh, cost, started_at')
             .gte('started_at', firstDay)
-            .limit(50)
           if (!error && sessions) {
             hasSessions = true
             totalKwh = sessions.reduce((a, s) => a + (s.energy_kwh ?? 0), 0)
@@ -75,7 +89,6 @@ export default function DashboardPage() {
         setLoading(false)
       }
     }
-
     const fetchMapChargers = async () => {
       const { data } = await supabase.from('chargers').select('id, name, status, latitude, longitude')
       if (data) {
@@ -86,31 +99,20 @@ export default function DashboardPage() {
       }
     }
 
-    // Initial load: sync charger status fire-and-forget, then fetch data
-    fetch('/api/admin/sync-chargers').catch(() => {})
-    Promise.all([fetchStats(), fetchMapChargers()])
-
-    // Subscribe to real-time changes instead of polling every 30 seconds
-    const channel = supabase
-      .channel('dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chargers' }, () => {
-        fetchStats()
-        fetchMapChargers()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'charging_sessions' }, () => {
-        fetchStats()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
+    const syncAndFetch = async () => {
+      await fetch('/api/admin/sync-chargers').catch(() => {})
+      await Promise.all([fetchStats(), fetchMapChargers()])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    syncAndFetch()
+
+    const interval = setInterval(syncAndFetch, 30000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cards = [
     {
-      label: 'Total Cargadores', value: loading ? '—' : stats.total, key: 'total' as const,
+      label: 'Total Cargadores', value: stats.total, key: 'total' as const,
       gradient: 'from-blue-600/25 via-blue-600/10 to-blue-600/0',
       border: 'border-blue-500/25', text: 'text-blue-300', glow: 'shadow-blue-500/10',
       icon: (
@@ -120,7 +122,7 @@ export default function DashboardPage() {
       ),
     },
     {
-      label: 'Disponibles', value: loading ? '—' : stats.available, key: 'available' as const,
+      label: 'Disponibles', value: stats.available, key: 'available' as const,
       gradient: 'from-emerald-600/25 via-emerald-600/10 to-emerald-600/0',
       border: 'border-emerald-500/25', text: 'text-emerald-300', glow: 'shadow-emerald-500/10',
       icon: (
@@ -130,7 +132,7 @@ export default function DashboardPage() {
       ),
     },
     {
-      label: 'En Carga', value: loading ? '—' : stats.charging, key: 'charging' as const,
+      label: 'En Carga', value: stats.charging, key: 'charging' as const,
       gradient: 'from-yellow-600/25 via-yellow-600/10 to-yellow-600/0',
       border: 'border-yellow-500/25', text: 'text-yellow-300', glow: 'shadow-yellow-500/10',
       icon: (
@@ -142,7 +144,7 @@ export default function DashboardPage() {
       ),
     },
     {
-      label: 'Offline', value: loading ? '—' : stats.offline, key: 'offline' as const,
+      label: 'Offline', value: stats.offline, key: 'offline' as const,
       gradient: 'from-red-600/25 via-red-600/10 to-red-600/0',
       border: 'border-red-500/25', text: 'text-red-300', glow: 'shadow-red-500/10',
       icon: (
@@ -160,17 +162,24 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-gray-400">Estado en tiempo real de la red de carga</p>
       </div>
 
+      {/* Primary stat cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {cards.map(c => (
-          <StatCard key={c.key} label={c.label} value={c.value}
+          <StatCard key={c.key} label={c.label} value={c.value} loading={loading}
             gradient={c.gradient} border={c.border} text={c.text} glow={c.glow} icon={c.icon} />
         ))}
       </div>
 
-      {stats.hasSessions && (
+      {/* Session stats — skeleton while loading, hidden if no sessions after load */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <SkeletonStatCard gradient="from-purple-600/25 via-purple-600/10 to-purple-600/0" border="border-purple-500/25" glow="shadow-purple-500/10" />
+          <SkeletonStatCard gradient="from-teal-600/25 via-teal-600/10 to-teal-600/0" border="border-teal-500/25" glow="shadow-teal-500/10" />
+        </div>
+      ) : stats.hasSessions ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <StatCard
-            label="kWh entregados (mes)" value={loading ? '—' : `${(stats.totalKwh ?? 0).toFixed(1)} kWh`}
+            label="kWh entregados (mes)" value={`${(stats.totalKwh ?? 0).toFixed(1)} kWh`}
             gradient="from-purple-600/25 via-purple-600/10 to-purple-600/0"
             border="border-purple-500/25" text="text-purple-300" glow="shadow-purple-500/10"
             icon={
@@ -180,7 +189,7 @@ export default function DashboardPage() {
             }
           />
           <StatCard
-            label="Ingresos del mes" value={loading ? '—' : `$${(stats.monthRevenue ?? 0).toFixed(2)}`}
+            label="Ingresos del mes" value={`$${(stats.monthRevenue ?? 0).toFixed(2)}`}
             gradient="from-teal-600/25 via-teal-600/10 to-teal-600/0"
             border="border-teal-500/25" text="text-teal-300" glow="shadow-teal-500/10"
             icon={
@@ -191,7 +200,7 @@ export default function DashboardPage() {
             }
           />
         </div>
-      )}
+      ) : null}
 
       {mapChargers.length > 0 && (
         <div className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6">
@@ -202,26 +211,40 @@ export default function DashboardPage() {
 
       <div className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">Estado de la red</h2>
-        <div className="space-y-3">
-          {[
-            { label: 'Disponibles', value: stats.available, total: stats.total, color: 'bg-emerald-500' },
-            { label: 'En Carga', value: stats.charging, total: stats.total, color: 'bg-yellow-500' },
-            { label: 'Offline', value: stats.offline, total: stats.total, color: 'bg-red-500' },
-          ].map(item => (
-            <div key={item.label}>
-              <div className="mb-1 flex justify-between text-xs text-gray-400">
-                <span>{item.label}</span>
-                <span>{item.value} / {item.total}</span>
+        {loading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i}>
+                <div className="mb-1 flex justify-between">
+                  <div className="h-3 w-20 bg-gray-800 rounded animate-pulse" />
+                  <div className="h-3 w-10 bg-gray-800 rounded animate-pulse" />
+                </div>
+                <div className="h-2 rounded-full bg-gray-800 animate-pulse" />
               </div>
-              <div className="h-2 rounded-full bg-gray-800">
-                <div
-                  className={`h-2 rounded-full ${item.color} transition-all duration-700`}
-                  style={{ width: item.total > 0 ? `${(item.value / item.total) * 100}%` : '0%' }}
-                />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {[
+              { label: 'Disponibles', value: stats.available, total: stats.total, color: 'bg-emerald-500' },
+              { label: 'En Carga', value: stats.charging, total: stats.total, color: 'bg-yellow-500' },
+              { label: 'Offline', value: stats.offline, total: stats.total, color: 'bg-red-500' },
+            ].map(item => (
+              <div key={item.label}>
+                <div className="mb-1 flex justify-between text-xs text-gray-400">
+                  <span>{item.label}</span>
+                  <span>{item.value} / {item.total}</span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-800">
+                  <div
+                    className={`h-2 rounded-full ${item.color} transition-all duration-700`}
+                    style={{ width: item.total > 0 ? `${(item.value / item.total) * 100}%` : '0%' }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
