@@ -4,298 +4,262 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 async function downloadCSV(endpoint: string, filename: string) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${session?.access_token}` } })
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+const { data: { session } } = await supabase.auth.getSession()
+const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${session?.access_token}` } })
+const blob = await res.blob()
+const url = URL.createObjectURL(blob)
+const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+URL.revokeObjectURL(url)
 }
 
 interface Session {
-  id: string
-  charger_id: string | null
-  started_at: string | null
-  ended_at: string | null
-  energy_kwh: number | null
-  cost: number | null
-  amount_charged: number | null
-  user_id: string | null
-  transaction_id: string | null
+id: string
+charger_id: string | null
+started_at: string | null
+ended_at: string | null
+energy_kwh: number | null
+cost: number | null
+amount_charged: number | null
+user_id: string | null
+transaction_id: string | null
 }
 
 function duration(start: string | null, end: string | null): string {
-  if (!start) return '—'
-  const s = new Date(start)
-  const e = end ? new Date(end) : new Date()
-  const mins = Math.floor((e.getTime() - s.getTime()) / 60000)
-  if (mins < 60) return `${mins}m`
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`
+if (!start) return '—'
+const s = new Date(start)
+const e = end ? new Date(end) : new Date()
+const mins = Math.floor((e.getTime() - s.getTime()) / 60000)
+if (mins < 60) return `${mins}m`
+return `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
 function fmtDate(d: string | null): string {
-  if (!d) return '—'
-  return new Date(d).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
+if (!d) return '—'
+return new Date(d).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function StatusPill({ ended }: { ended: string | null }) {
-  return ended
-    ? <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">Completada</span>
-    : <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300 border border-emerald-500/30">Activa</span>
+return ended
+? <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">Completada</span>
+: <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300 border border-emerald-500/30">Activa</span>
 }
 
 function SuccessBanner() {
-  const searchParams = useSearchParams()
-  const [show, setShow] = useState(false)
+const searchParams = useSearchParams()
+const [show, setShow] = useState(false)
 
-  useEffect(() => {
-    if (searchParams.get('payment') === 'success') {
-      setShow(true)
-      const t = setTimeout(() => setShow(false), 8000)
-      return () => clearTimeout(t)
-    }
-  }, [searchParams])
-
-  if (!show) return null
-
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-emerald-300">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 shrink-0">
-        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-      </svg>
-      <span className="font-medium">¡Pago exitoso! Tu sesión de carga ha sido registrada.</span>
-    </div>
-  )
+useEffect(() => {
+if (searchParams.get('payment') === 'success') {
+setShow(true)
+const t = setTimeout(() => setShow(false), 8000)
+return () => clearTimeout(t)
 }
+}, [searchParams])
 
-// UI-minor: Custom confirmation modal (replaces native confirm())
-function ForceStopModal({
-  sessionId, onConfirm, onCancel
-}: { sessionId: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-gray-700 bg-gray-900 p-6 shadow-2xl">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-red-400">
-            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-white mb-2">Cerrar sesión forzosamente</h3>
-        <p className="text-sm text-gray-400 mb-1">
-          Esta acción cerrará la sesión activa y restaurará el saldo no utilizado al usuario.
-        </p>
-        <p className="text-xs text-gray-500 mb-6 font-mono">ID: {sessionId.slice(0, 8)}…</p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 rounded-xl border border-gray-700 bg-gray-800 py-2.5 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-500 transition-colors"
-          >
-            Sí, cerrar sesión
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+if (!show) return null
+
+return (
+<div className="flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-emerald-300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 shrink-0">
+<path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+</svg>
+<span className="font-medium">¡Pago exitoso! Tu sesión de carga ha sido registrada.</span>
+</div>
+)
 }
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [forceStoppingId, setForceStoppingId] = useState<string | null>(null)
-  const [forceStopMsg, setForceStopMsg] = useState('')
-  const [confirmSessionId, setConfirmSessionId] = useState<string | null>(null)
+const [sessions, setSessions] = useState<Session[]>([])
+const [loading, setLoading] = useState(true)
+const [error, setError] = useState('')
+const [forceStoppingId, setForceStoppingId] = useState<string | null>(null)
+const [forceStopMsg, setForceStopMsg] = useState('')
+const [activeLimit, setActiveLimit] = useState(100)
 
-  useEffect(() => {
-    async function load() {
-      const { data, error } = await supabase
-        .from('charging_sessions')
-        .select('*')
-        .order('started_at', { ascending: false })
-        .limit(100)
-      if (error) setError('Tabla charging_sessions no encontrada. Créala en Supabase.')
-      else setSessions(data ?? [])
-      setLoading(false)
-    }
-    load()
-  }, [])
+useEffect(() => {
+async function load() {
+const params = new URLSearchParams(window.location.search)
+const limitParam = parseInt(params.get('limit') || '100', 10)
+const effectiveLimit = isNaN(limitParam) ? 100 : Math.min(Math.max(1, limitParam), 500)
+setActiveLimit(effectiveLimit)
 
-  async function handleForceStop(sessionId: string) {
-    setForceStoppingId(sessionId)
-    setConfirmSessionId(null)
-    setForceStopMsg('')
-    try {
-      const { data: { session: authSession } } = await supabase.auth.getSession()
-      const res = await fetch(`/api/admin/sessions/${sessionId}/force-stop`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${authSession?.access_token}` },
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setForceStopMsg(`Error: ${json.error}`)
-      } else {
-        setForceStopMsg('Sesión cerrada y saldo restaurado.')
-        setSessions(prev =>
-          prev.map(s =>
-            s.id === sessionId ? { ...s, ended_at: new Date().toISOString() } : s
-          )
-        )
-      }
-    } catch (e: any) {
-      setForceStopMsg(`Error: ${e.message}`)
-    } finally {
-      setForceStoppingId(null)
-      setTimeout(() => setForceStopMsg(''), 5000)
-    }
-  }
+const { data, error } = await supabase
+.from('charging_sessions')
+.select('*')
+.order('started_at', { ascending: false })
+.limit(effectiveLimit)
+if (error) setError('Tabla charging_sessions no encontrada. Créala en Supabase.')
+else setSessions(data ?? [])
+setLoading(false)
+}
+load()
+}, [])
 
-  return (
-    <div className="space-y-6">
-      {/* UI-minor: Custom Force Stop confirmation modal */}
-      {confirmSessionId && (
-        <ForceStopModal
-          sessionId={confirmSessionId}
-          onConfirm={() => handleForceStop(confirmSessionId)}
-          onCancel={() => setConfirmSessionId(null)}
-        />
-      )}
+async function handleForceStop(sessionId: string) {
+if (!confirm('¿Cerrar forzosamente esta sesión y restaurar el saldo?')) return
+setForceStoppingId(sessionId)
+setForceStopMsg('')
+try {
+const { data: { session: authSession } } = await supabase.auth.getSession()
+const res = await fetch(`/api/admin/sessions/${sessionId}/force-stop`, {
+method: 'POST',
+headers: { Authorization: `Bearer ${authSession?.access_token}` },
+})
+const json = await res.json()
+if (!res.ok) {
+setForceStopMsg(`Error: ${json.error}`)
+} else {
+setForceStopMsg('Sesión cerrada y saldo restaurado.')
+setSessions(prev =>
+prev.map(s =>
+s.id === sessionId ? { ...s, ended_at: new Date().toISOString() } : s
+)
+)
+}
+} catch (e: any) {
+setForceStopMsg(`Error: ${e.message}`)
+} finally {
+setForceStoppingId(null)
+setTimeout(() => setForceStopMsg(''), 5000)
+}
+}
 
-      <div>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
-            <p className="mt-1 text-sm text-gray-400">Historial de sesiones registradas</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => downloadCSV('/api/admin/export/sessions', 'sesiones.csv')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</button>
-            <button onClick={() => downloadCSV('/api/admin/export/payments', 'pagos.csv')} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</button>
-          </div>
-        </div>
-      </div>
+return (
+<div className="space-y-6">
+<div>
+<div className="flex items-center justify-between flex-wrap gap-3">
+<div>
+<h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
+<p className="mt-1 text-sm text-gray-400">
+{!loading && sessions.length > 0
+? `Mostrando ${sessions.length} sesión${sessions.length !== 1 ? 'es' : ''} (límite: ${activeLimit})`
+: 'Historial de sesiones registradas'}
+</p>
+</div>
+<div className="flex gap-2">
+<button onClick={() => downloadCSV('/api/admin/export/sessions', 'sesiones.csv')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</button>
+<button onClick={() => downloadCSV('/api/admin/export/payments', 'pagos.csv')} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</button>
+</div>
+</div>
+</div>
 
-      <Suspense fallback={null}>
-        <SuccessBanner />
-      </Suspense>
+<Suspense fallback={null}>
+<SuccessBanner />
+</Suspense>
 
-      {forceStopMsg && (
-        <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
-          {forceStopMsg}
-        </div>
-      )}
+{forceStopMsg && (
+<div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
+{forceStopMsg}
+</div>
+)}
 
-      {error && (
-        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300">
-          <strong>Sin datos:</strong> {error}
-          <div className="mt-3">
-            <p className="mb-2 font-mono text-xs text-gray-400">Ejecuta en Supabase SQL Editor:</p>
-            <pre className="overflow-x-auto rounded bg-black/40 p-3 text-xs text-gray-300">{`CREATE TABLE charging_sessions (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  charger_id text REFERENCES chargers(id),
-  started_at timestamptz DEFAULT now(),
-  ended_at timestamptz,
-  kwh_delivered numeric,
-  amount_charged numeric,
-  user_id text,
-  transaction_id text,
-  created_at timestamptz DEFAULT now()
+{error && (
+<div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300">
+<strong>Sin datos:</strong> {error}
+<div className="mt-3">
+<p className="mb-2 font-mono text-xs text-gray-400">Ejecuta en Supabase SQL Editor:</p>
+<pre className="overflow-x-auto rounded bg-black/40 p-3 text-xs text-gray-300">{`CREATE TABLE charging_sessions (
+id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+charger_id text REFERENCES chargers(id),
+started_at timestamptz DEFAULT now(),
+ended_at timestamptz,
+kwh_delivered numeric,
+amount_charged numeric,
+user_id text,
+transaction_id text,
+created_at timestamptz DEFAULT now()
 );
 ALTER TABLE charging_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY anon_select_sessions ON charging_sessions
-  FOR SELECT TO anon USING (true);`}</pre>
-          </div>
-        </div>
-      )}
+FOR SELECT TO anon USING (true);`}</pre>
+</div>
+</div>
+)}
 
-      {loading && (
-        <div className="flex items-center gap-3 text-gray-400">
-          <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-          </svg>
-          Cargando sesiones...
-        </div>
-      )}
+{loading && (
+<div className="flex items-center gap-3 text-gray-400">
+<svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+</svg>
+Cargando sesiones...
+</div>
+)}
 
-      {!loading && !error && sessions.length === 0 && (
-        <div className="rounded-xl border border-gray-700/50 bg-gray-900/50 p-8 text-center text-gray-500">
-          No hay sesiones registradas aún.
-        </div>
-      )}
+{!loading && !error && sessions.length === 0 && (
+<div className="rounded-xl border border-gray-700/50 bg-gray-900/50 p-8 text-center text-gray-500">
+No hay sesiones registradas aún.
+</div>
+)}
 
-      {/* Desktop table */}
-      {!loading && sessions.length > 0 && (
-        <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-700/50 bg-gray-900/50">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700/50">
-                {['Cargador', 'Inicio', 'Duración', 'kWh', 'Monto', 'Estado', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {sessions.map(s => (
-                <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-300">{fmtDate(s.started_at)}</td>
-                  <td className="px-4 py-3 text-gray-300">{duration(s.started_at, s.ended_at)}</td>
-                  <td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : '—'}</td>
-                  <td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
-                  <td className="px-4 py-3"><StatusPill ended={s.ended_at} /></td>
-                  <td className="px-4 py-3">
-                    {!s.ended_at && (
-                      <button
-                        onClick={() => setConfirmSessionId(s.id)}
-                        disabled={forceStoppingId === s.id}
-                        className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {forceStoppingId === s.id ? 'Deteniendo…' : 'Force Stop'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+{/* Desktop table */}
+{!loading && sessions.length > 0 && (
+<div className="hidden md:block overflow-hidden rounded-2xl border border-gray-700/50 bg-gray-900/50">
+<table className="w-full text-sm">
+<thead>
+<tr className="border-b border-gray-700/50">
+{['Cargador', 'Inicio', 'Duración', 'kWh', 'Monto', 'Estado', ''].map(h => (
+<th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
+))}
+</tr>
+</thead>
+<tbody className="divide-y divide-gray-800/50">
+{sessions.map(s => (
+<tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
+<td className="px-4 py-3 font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</td>
+<td className="px-4 py-3 text-gray-300">{fmtDate(s.started_at)}</td>
+<td className="px-4 py-3 text-gray-300">{duration(s.started_at, s.ended_at)}</td>
+<td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : '—'}</td>
+<td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
+<td className="px-4 py-3"><StatusPill ended={s.ended_at} /></td>
+<td className="px-4 py-3">
+{!s.ended_at && (
+<button
+onClick={() => handleForceStop(s.id)}
+disabled={forceStoppingId === s.id}
+className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+>
+{forceStoppingId === s.id ? 'Deteniendo…' : 'Force Stop'}
+</button>
+)}
+</td>
+</tr>
+))}
+</tbody>
+</table>
+</div>
+)}
 
-      {/* Mobile cards */}
-      {!loading && sessions.length > 0 && (
-        <div className="space-y-3 md:hidden">
-          {sessions.map(s => (
-            <div key={s.id} className="rounded-xl border border-gray-700/50 bg-gray-900/60 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</span>
-                <StatusPill ended={s.ended_at} />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><p className="text-gray-500">Inicio</p><p className="text-gray-300">{fmtDate(s.started_at)}</p></div>
-                <div><p className="text-gray-500">Duración</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
-                <div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</p></div>
-                <div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</p></div>
-              </div>
-              {!s.ended_at && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => setConfirmSessionId(s.id)}
-                    disabled={forceStoppingId === s.id}
-                    className="w-full rounded-lg bg-red-600/20 border border-red-500/40 py-2 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {forceStoppingId === s.id ? 'Deteniendo…' : '⏹ Force Stop'}
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+{/* Mobile cards */}
+{!loading && sessions.length > 0 && (
+<div className="space-y-3 md:hidden">
+{sessions.map(s => (
+<div key={s.id} className="rounded-xl border border-gray-700/50 bg-gray-900/60 p-4">
+<div className="flex items-center justify-between mb-3">
+<span className="font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</span>
+<StatusPill ended={s.ended_at} />
+</div>
+<div className="grid grid-cols-2 gap-2 text-xs">
+<div><p className="text-gray-500">Inicio</p><p className="text-gray-300">{fmtDate(s.started_at)}</p></div>
+<div><p className="text-gray-500">Duración</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
+<div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</p></div>
+<div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</p></div>
+</div>
+{!s.ended_at && (
+<div className="mt-3">
+<button
+onClick={() => handleForceStop(s.id)}
+disabled={forceStoppingId === s.id}
+className="w-full rounded-lg bg-red-600/20 border border-red-500/40 py-2 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+>
+{forceStoppingId === s.id ? 'Deteniendo…' : '⏹ Force Stop'}
+</button>
+</div>
+)}
+</div>
+))}
+</div>
+)}
+</div>
+)
 }
