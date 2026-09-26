@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
     req.headers.get('authorization')?.replace('Bearer ', '').trim() ||
     cookieStore.get('sb-access-token')?.value
 
-  if (!token) return NextResponse.json({ balance: 0, currency: 'USD' })
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: { user } } = await supabase.auth.getUser(token)
-  if (!user) return NextResponse.json({ balance: 0, currency: 'USD' })
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data } = await supabase
     .from('user_balances')
