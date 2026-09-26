@@ -43,6 +43,22 @@ export async function DELETE(
   }
   const { id } = await params
   const db = supabaseAdmin()
+
+  // M-6: Prevent deleting charger with active charging sessions
+  const { data: activeSessions } = await db
+    .from('charging_sessions')
+    .select('id')
+    .eq('charger_id', id)
+    .is('ended_at', null)
+    .limit(1)
+
+  if (activeSessions && activeSessions.length > 0) {
+    return NextResponse.json(
+      { error: 'No se puede eliminar un cargador con sesiones de carga activas' },
+      { status: 409 }
+    )
+  }
+
   const { error } = await db.from('chargers').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
