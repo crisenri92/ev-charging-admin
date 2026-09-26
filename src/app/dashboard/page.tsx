@@ -55,18 +55,17 @@ export default function DashboardPage() {
   })
   const [loading, setLoading] = useState(true)
   const [mapChargers, setMapChargers] = useState<any[]>([])
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Charger counts
         const { data: chargers } = await supabase.from('chargers').select('status')
         const total = chargers?.length ?? 0
         const available = chargers?.filter(c => c.status === 'Available').length ?? 0
         const charging = chargers?.filter(c => c.status === 'Charging').length ?? 0
         const offline = chargers?.filter(c => c.status === 'Offline' || c.status === 'Unavailable').length ?? 0
 
-        // Try sessions table
         let totalKwh: number | null = null
         let monthRevenue: number | null = null
         let hasSessions = false
@@ -89,6 +88,7 @@ export default function DashboardPage() {
         setLoading(false)
       }
     }
+
     const fetchMapChargers = async () => {
       const { data } = await supabase.from('chargers').select('id, name, status, latitude, longitude')
       if (data) {
@@ -99,15 +99,27 @@ export default function DashboardPage() {
       }
     }
 
+    // M-5: Surface sync errors instead of swallowing them silently
     const syncAndFetch = async () => {
-      await fetch('/api/admin/sync-chargers').catch(() => {})
+      try {
+        const res = await fetch('/api/admin/sync-chargers')
+        if (!res.ok) {
+          setSyncError('No se pudo sincronizar el estado de los cargadores')
+          console.error('[dashboard] sync-chargers returned', res.status)
+        } else {
+          setSyncError(null)
+        }
+      } catch (err) {
+        console.error('[dashboard] sync-chargers failed:', err)
+        setSyncError('No se pudo conectar al servidor OCPP')
+      }
       await Promise.all([fetchStats(), fetchMapChargers()])
     }
-    syncAndFetch()
 
+    syncAndFetch()
     const interval = setInterval(syncAndFetch, 30000)
     return () => clearInterval(interval)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cards = [
@@ -162,7 +174,16 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-gray-400">Estado en tiempo real de la red de carga</p>
       </div>
 
-      {/* Primary stat cards */}
+      {/* M-5: OCPP sync error banner */}
+      {syncError && (
+        <div className="flex items-center gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
+            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+          </svg>
+          <span>{syncError} — los datos mostrados pueden no reflejar el estado actual</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {cards.map(c => (
           <StatCard key={c.key} label={c.label} value={c.value} loading={loading}
@@ -170,7 +191,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Session stats — skeleton while loading, hidden if no sessions after load */}
       {loading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <SkeletonStatCard gradient="from-purple-600/25 via-purple-600/10 to-purple-600/0" border="border-purple-500/25" glow="shadow-purple-500/10" />
