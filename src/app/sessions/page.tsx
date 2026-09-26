@@ -68,12 +68,49 @@ function SuccessBanner() {
   )
 }
 
+// UI-minor: Custom confirmation modal (replaces native confirm())
+function ForceStopModal({
+  sessionId, onConfirm, onCancel
+}: { sessionId: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-gray-700 bg-gray-900 p-6 shadow-2xl">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-red-400">
+            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-white mb-2">Cerrar sesión forzosamente</h3>
+        <p className="text-sm text-gray-400 mb-1">
+          Esta acción cerrará la sesión activa y restaurará el saldo no utilizado al usuario.
+        </p>
+        <p className="text-xs text-gray-500 mb-6 font-mono">ID: {sessionId.slice(0, 8)}…</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-gray-700 bg-gray-800 py-2.5 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-500 transition-colors"
+          >
+            Sí, cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [forceStoppingId, setForceStoppingId] = useState<string | null>(null)
   const [forceStopMsg, setForceStopMsg] = useState('')
+  const [confirmSessionId, setConfirmSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -90,8 +127,8 @@ export default function SessionsPage() {
   }, [])
 
   async function handleForceStop(sessionId: string) {
-    if (!confirm('¿Cerrar forzosamente esta sesión y restaurar el saldo?')) return
     setForceStoppingId(sessionId)
+    setConfirmSessionId(null)
     setForceStopMsg('')
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession()
@@ -120,6 +157,15 @@ export default function SessionsPage() {
 
   return (
     <div className="space-y-6">
+      {/* UI-minor: Custom Force Stop confirmation modal */}
+      {confirmSessionId && (
+        <ForceStopModal
+          sessionId={confirmSessionId}
+          onConfirm={() => handleForceStop(confirmSessionId)}
+          onCancel={() => setConfirmSessionId(null)}
+        />
+      )}
+
       <div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -205,7 +251,7 @@ CREATE POLICY anon_select_sessions ON charging_sessions
                   <td className="px-4 py-3">
                     {!s.ended_at && (
                       <button
-                        onClick={() => handleForceStop(s.id)}
+                        onClick={() => setConfirmSessionId(s.id)}
                         disabled={forceStoppingId === s.id}
                         className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
@@ -238,7 +284,7 @@ CREATE POLICY anon_select_sessions ON charging_sessions
               {!s.ended_at && (
                 <div className="mt-3">
                   <button
-                    onClick={() => handleForceStop(s.id)}
+                    onClick={() => setConfirmSessionId(s.id)}
                     disabled={forceStoppingId === s.id}
                     className="w-full rounded-lg bg-red-600/20 border border-red-500/40 py-2 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
