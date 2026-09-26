@@ -78,18 +78,7 @@ export function requireWebhookSecret(req: Request) {
 }
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
-
-const _rlMap = new Map<string, { count: number; resetAt: number }>()
-
-/** Returns true if the request is within the rate limit. */
-export function checkRateLimit(key: string, limit = 10): boolean {
-  const now = Date.now()
-  const entry = _rlMap.get(key)
-  if (!entry || entry.resetAt < now) {
-    _rlMap.set(key, { count: 1, resetAt: now + 60_000 })
-    return true
-  }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
-}
+// M-2: Removed duplicate checkRateLimit implementation.
+// Use @/lib/rate-limit instead — it has sliding window, proper cleanup,
+// and a richer return type { ok, remaining, resetIn }.
+export { checkRateLimit } from '@/lib/rate-limit'
