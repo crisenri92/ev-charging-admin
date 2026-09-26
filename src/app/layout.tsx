@@ -8,13 +8,13 @@ import { ToastContainer } from '@/components/Toast'
 const outfit = Outfit({ subsets: ['latin'], weight: ['400', '500', '600', '700', '900'] })
 
 export const metadata: Metadata = {
-  title: 'RecargaT',
-  description: 'Recarga tu vehículo eléctrico fácil y rápido',
+  title: 'RecargaT Admin',
+  description: 'Panel de administración de la red de cargadores RecargaT',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'RecargaT',
+    title: 'RecargaT Admin',
   },
 }
 
@@ -35,14 +35,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(reg) { console.log('SW registered:', reg.scope); })
-                    .catch(function(err) { console.log('SW error:', err); });
-                });
-              }
-            `,
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js')
+      .then(function(reg) { console.log('SW registered:', reg.scope); })
+      .catch(function(err) { console.log('SW error:', err); });
+  });
+}
+`,
           }}
         />
       </head>
@@ -54,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
         </div>
         <ToastContainer />
-            <MobileBottomNav />
+        <MobileBottomNav />
       </body>
     </html>
   )
