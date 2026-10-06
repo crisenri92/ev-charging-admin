@@ -1,10 +1,13 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessionExpired = searchParams.get('reason') === 'session_expired'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -20,6 +23,8 @@ export default function LoginPage() {
       body: JSON.stringify({ email, password }),
     })
     if (res.ok) {
+      // Registrar timestamp de inicio de sesion para expiracion
+      document.cookie = `session_created_at=${Date.now()}; path=/; SameSite=Strict; max-age=86400`
       router.push('/dashboard')
       router.refresh()
     } else {
@@ -41,6 +46,13 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white">Administrador</h1>
           <p className="text-gray-400 text-sm mt-1">Panel de gestión Recargat</p>
         </div>
+        {sessionExpired && (
+          <div className="mb-4 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <p className="text-yellow-400 text-sm text-center">
+              Tu sesión ha expirado. Por favor inicia sesión de nuevo.
+            </p>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
@@ -72,5 +84,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
