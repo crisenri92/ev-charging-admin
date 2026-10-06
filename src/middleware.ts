@@ -21,6 +21,8 @@ const ADMIN_API_PATHS = [
   '/api/vouchers',
 ]
 
+const MAX_SESSION_AGE_MS = 8 * 60 * 60 * 1000 // 8 horas
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -52,6 +54,29 @@ export function middleware(request: NextRequest) {
     const adminToken = request.cookies.get('admin_token')?.value
     if (!adminToken || adminToken !== process.env.ADMIN_SECRET) {
       return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    // Verificar expiracion de sesion
+    const sessionCreatedAt = request.cookies.get('session_created_at')?.value
+
+    if (!sessionCreatedAt) {
+      // Sin timestamp: primera solicitud post-deploy -- inicializar ahora
+      const response = NextResponse.next()
+      response.cookies.set('session_created_at', Date.now().toString(), {
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24,
+        path: '/',
+      })
+      return response
+    }
+
+    const age = Date.now() - parseInt(sessionCreatedAt, 10)
+    if (age > MAX_SESSION_AGE_MS) {
+      // Sesion expirada -- limpiar cookies y redirigir al login
+      const response = NextResponse.redirect(new URL('/login?reason=session_expired', request.url))
+      response.cookies.delete('session_created_at')
+      response.cookies.delete('admin_token')
+      return response
     }
   }
 
