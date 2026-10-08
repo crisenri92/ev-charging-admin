@@ -7,20 +7,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-async function requireAdminUser(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '') ??
-                req.cookies.get('sb-access-token')?.value ?? ''
-  if (!token) return null
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  if (error || !user) return null
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  return profile?.role === 'admin' ? user : null
-}
-
+// Bug #3 fix: removed requireAdminUser() — the middleware already validated the admin_token
+// cookie before this handler is reached. Using a local Supabase JWT check was causing
+// 403 because the admin panel never sends a Bearer token, only the admin_token cookie.
 export async function POST(req: NextRequest) {
-  const adminUser = await requireAdminUser(req)
-  if (!adminUser) return NextResponse.json({ error: 'Se requiere rol admin' }, { status: 403 })
-
   try {
     const { userId, amount, operation, reason } = await req.json()
     if (!userId || amount === undefined || !operation)
@@ -60,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     // Audit trail — log to audit_logs for admin accountability
     logAuditEvent(
-      adminUser.id,
+      'admin',
       'user.balance_adjust',
       'user_balances',
       userId,
@@ -70,7 +60,6 @@ export async function POST(req: NextRequest) {
         reason: reason ?? null,
         balance_before: currentBalance,
         balance_after: newBalance,
-        admin_id: adminUser.id,
       }
     )
 
