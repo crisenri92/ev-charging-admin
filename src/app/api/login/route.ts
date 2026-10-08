@@ -8,7 +8,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!checkRateLimit(`login:${ip}`, 5))
+  if (!checkRateLimit(`login:${ip}`, 5).ok)
     return NextResponse.json({ error: 'Demasiados intentos. Espera un minuto.' }, { status: 429 })
 
   const { email, password } = await request.json()
