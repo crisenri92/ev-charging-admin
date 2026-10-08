@@ -28,8 +28,12 @@ function LoginForm() {
       router.push('/dashboard')
       router.refresh()
     } else {
-      const d = await res.json()
-      setError(d.error || 'Credenciales incorrectas')
+      try {
+        const d = await res.json()
+        setError(d.error || 'Credenciales incorrectas')
+      } catch {
+        setError('Error del servidor. Intenta de nuevo.')
+      }
     }
     setLoading(false)
   }
