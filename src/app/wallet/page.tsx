@@ -6,6 +6,17 @@ import { MobileToast } from '@/components/MobileToast'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
 
+// ─── Datos bancarios — editar según tu banco ───────────────────────────────
+const BANK_INFO = [
+  { label: 'Banco',        value: 'Banco XYZ' },
+  { label: 'Titular',      value: 'RecargaT S.A.' },
+  { label: 'N° de cuenta', value: '1234567890' },
+  { label: 'Tipo',         value: 'Corriente' },
+  { label: 'RUC',          value: '0992345678001' },
+  { label: 'Email',        value: 'pagos@recargat.app' },
+]
+// ───────────────────────────────────────────────────────────────────────────
+
 interface Transaction {
   id: string
   amount: number
@@ -25,6 +36,9 @@ interface PendingPayment {
   expiresAt?: string
 }
 
+type PaymentMethod = 'deuna' | 'transfer'
+type TransferStep = 'bank-info' | 'form' | 'success'
+
 function WalletContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -37,6 +51,16 @@ function WalletContent() {
   const [customAmount, setCustomAmount] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const cancelledRef = useRef(false)
+
+  // Payment method state
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('deuna')
+  const [transferStep, setTransferStep] = useState<TransferStep>('bank-info')
+  const [transferAmount, setTransferAmount] = useState('')
+  const [transferRef, setTransferRef] = useState('')
+  const [transferReceiptUrl, setTransferReceiptUrl] = useState('')
+  const [transferLoading, setTransferLoading] = useState(false)
+  const [transferErrors, setTransferErrors] = useState<Record<string, string>>({})
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   useEffect(() => {
     if (searchParams.get('recharge') === 'success') {
@@ -137,8 +161,65 @@ function WalletContent() {
     setWaitingPayment(false)
   }
 
+  const copyToClipboard = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedField(label)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch {
+      setToast({ msg: 'No se pudo copiar', type: 'error' })
+    }
+  }
+
+  const validateTransfer = (): boolean => {
+    const errs: Record<string, string> = {}
+    const num = parseFloat(transferAmount)
+    if (!transferAmount || isNaN(num)) errs.amount = 'Ingresa un monto válido'
+    else if (num <= 0) errs.amount = 'El monto debe ser mayor a $0'
+    else if (num > 10000) errs.amount = 'El monto máximo es $10,000'
+    if (!transferRef.trim()) errs.ref = 'Ingresa el número de referencia de tu transferencia'
+    setTransferErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleTransferSubmit = async () => {
+    if (!validateTransfer()) return
+    setTransferLoading(true)
+    try {
+      const token = await getToken()
+      if (!token) { router.push('/mobile/login'); return }
+      const body: Record<string, unknown> = {
+        amount: parseFloat(transferAmount),
+        reference_number: transferRef.trim(),
+      }
+      if (transferReceiptUrl.trim()) body.receipt_url = transferReceiptUrl.trim()
+      const res = await fetch('/api/transfer-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al enviar la solicitud')
+      setTransferStep('success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido'
+      setToast({ msg, type: 'error' })
+    } finally {
+      setTransferLoading(false)
+    }
+  }
+
+  const resetTransfer = () => {
+    setTransferAmount('')
+    setTransferRef('')
+    setTransferReceiptUrl('')
+    setTransferErrors({})
+    setTransferStep('bank-info')
+  }
+
   function txIcon(type: string, amount: number) {
     if (type === 'voucher') return '🎁'
+    if (type === 'transfer') return '🏦'
     if (type === 'balance_recharge' || type === 'topup' || type === 'recharge' || amount > 0) return '💳'
     if (type === 'charge' || type === 'charge_deduction') return '⚡'
     return '💸'
@@ -170,7 +251,7 @@ function WalletContent() {
       })
       const d = await res.json()
       if (!res.ok) { setToast({ msg: d.error || 'Código inválido', type: 'error' }); return }
-      setToast({ msg: `+$${d.amount.toFixed(2)} agregados a tu wallet 🎉`, type: 'success' })
+      setToast({ msg: `+${d.amount.toFixed(2)} agregados a tu wallet 🎉`, type: 'success' })
       setVoucherCode('')
       loadData()
     } catch { setToast({ msg: 'Error de conexión', type: 'error' }) }
@@ -181,6 +262,7 @@ function WalletContent() {
     <div className="min-h-screen" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 
+      {/* DEUNA payment modal */}
       {pendingPayment && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
@@ -191,21 +273,13 @@ function WalletContent() {
 
             {pendingPayment.qrCode && (
               <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
-                <img
-                  src={pendingPayment.qrCode}
-                  alt="QR de pago Deuna"
-                  className="w-56 h-56 object-contain"
-                />
+                <img src={pendingPayment.qrCode} alt="QR de pago Deuna" className="w-56 h-56 object-contain" />
               </div>
             )}
 
             {pendingPayment.deeplink && (
-              <a
-                href={pendingPayment.deeplink}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-center bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-xl mb-3"
-              >
+              <a href={pendingPayment.deeplink} target="_blank" rel="noreferrer"
+                className="block text-center bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-xl mb-3">
                 Abrir en Deuna
               </a>
             )}
@@ -217,19 +291,12 @@ function WalletContent() {
             )}
 
             <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-4">
-              {waitingPayment && (
-                <div className="h-4 w-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-              )}
-              {waitingPayment
-                ? 'Esperando confirmación de pago…'
-                : 'Si ya pagaste, vuelve a consultar'}
+              {waitingPayment && <div className="h-4 w-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />}
+              {waitingPayment ? 'Esperando confirmación de pago…' : 'Si ya pagaste, vuelve a consultar'}
             </div>
 
             <div className="flex gap-2">
-              <button
-                onClick={closePaymentModal}
-                className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300"
-              >
+              <button onClick={closePaymentModal} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300">
                 Cancelar
               </button>
               <button
@@ -240,8 +307,7 @@ function WalletContent() {
                   cancelledRef.current = false
                   pollPayment(pendingPayment.paymentId, token)
                 }}
-                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-40"
-              >
+                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-40">
                 {waitingPayment ? 'Consultando…' : 'Ya pagué'}
               </button>
             </div>
@@ -249,13 +315,11 @@ function WalletContent() {
         </div>
       )}
 
+      {/* Balance header */}
       <div className="relative overflow-hidden px-4 pt-6 pb-8">
         <div className="absolute inset-0 bg-gradient-to-br from-green-700/40 via-green-800/20 to-transparent" />
         <div className="relative">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-4 active:opacity-70 transition-colors"
-          >
+          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-4 active:opacity-70 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -275,46 +339,197 @@ function WalletContent() {
         </div>
       </div>
 
-      <div className="px-4 mb-6">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          {QUICK_AMOUNTS.map(amt => (
-            <button key={amt} onClick={() => handleRecharge(amt)} disabled={busy}
-              className="bg-gray-800 hover:bg-gray-700 active:scale-95 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
-              ${amt}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">$</span>
-            <input
-              type="number"
-              min="1"
-              max="500"
-              step="0.01"
-              placeholder="Otro monto"
-              value={customAmount}
-              onChange={e => setCustomAmount(e.target.value)}
-              className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-green-500 text-sm transition-all"
-              inputMode="decimal"
-            />
-          </div>
+      {/* Payment method toggle */}
+      <div className="px-4 mb-5">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Método de recarga</p>
+        <div className="flex gap-2 bg-gray-800/50 p-1 rounded-xl border border-gray-700">
           <button
-            onClick={() => handleRecharge(customAmt)}
-            disabled={busy || !customAmount || customAmt < 1}
-            className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
-            {recharging ? '...' : 'Recargar'}
+            onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'deuna' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+            <span>💳</span> Deuna
+          </button>
+          <button
+            onClick={() => { setPaymentMethod('transfer'); resetTransfer() }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'transfer' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+            <span>🏦</span> Transferencia
           </button>
         </div>
       </div>
 
+      {/* ── DEUNA flow ─────────────────────────────────────────────────────── */}
+      {paymentMethod === 'deuna' && (
+        <div className="px-4 mb-6">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {QUICK_AMOUNTS.map(amt => (
+              <button key={amt} onClick={() => handleRecharge(amt)} disabled={busy}
+                className="bg-gray-800 hover:bg-gray-700 active:scale-95 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
+                ${amt}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">$</span>
+              <input
+                type="number" min="1" max="500" step="0.01" placeholder="Otro monto"
+                value={customAmount} onChange={e => setCustomAmount(e.target.value)}
+                className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-green-500 text-sm transition-all"
+                inputMode="decimal"
+              />
+            </div>
+            <button
+              onClick={() => handleRecharge(customAmt)}
+              disabled={busy || !customAmount || customAmt < 1}
+              className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
+              {recharging ? '...' : 'Recargar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TRANSFER flow ──────────────────────────────────────────────────── */}
+      {paymentMethod === 'transfer' && (
+        <div className="px-4 mb-6">
+          {/* Step: bank info */}
+          {transferStep === 'bank-info' && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Datos para la transferencia</p>
+              <div className="bg-gray-900 rounded-2xl border border-gray-700 overflow-hidden mb-4">
+                {BANK_INFO.map(({ label, value }) => (
+                  <button
+                    key={label}
+                    onClick={() => copyToClipboard(value, label)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 border-b border-gray-800 last:border-0 active:bg-gray-800 transition-colors text-left">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">{label}</p>
+                      <p className="text-white font-semibold text-sm">{value}</p>
+                    </div>
+                    <span className="text-xs ml-3">
+                      {copiedField === label
+                        ? <span className="text-green-400 font-medium">✓ Copiado</span>
+                        : <span className="text-gray-500">⎘</span>
+                      }
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3 mb-4 flex gap-2">
+                <span className="text-base">ℹ️</span>
+                <p className="text-blue-300 text-xs leading-relaxed">
+                  Realiza la transferencia y luego regresa aquí para registrar el comprobante. Tu saldo se acreditará en 1–24 horas hábiles.
+                </p>
+              </div>
+              <button
+                onClick={() => setTransferStep('form')}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold rounded-xl text-sm transition-all">
+                Ya hice la transferencia →
+              </button>
+            </div>
+          )}
+
+          {/* Step: form */}
+          {transferStep === 'form' && (
+            <div>
+              <button onClick={() => setTransferStep('bank-info')} className="flex items-center gap-1 text-gray-400 text-sm mb-4">
+                ← Ver datos bancarios
+              </button>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Registrar comprobante</p>
+
+              {/* Monto */}
+              <div className="mb-4">
+                <p className="text-gray-300 text-sm font-medium mb-2">Monto transferido (USD) <span className="text-red-400">*</span></p>
+                <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl px-4 focus-within:border-blue-500 transition-colors" style={{ borderColor: transferErrors.amount ? '#f87171' : undefined }}>
+                  <span className="text-gray-400 font-medium mr-1">$</span>
+                  <input
+                    type="number" min="0.01" max="10000" step="0.01" placeholder="0.00"
+                    value={transferAmount}
+                    onChange={e => { setTransferAmount(e.target.value); setTransferErrors(p => ({ ...p, amount: '' })) }}
+                    className="flex-1 py-3.5 bg-transparent text-white text-lg font-semibold placeholder-gray-600 focus:outline-none"
+                    inputMode="decimal"
+                  />
+                </div>
+                {transferErrors.amount && <p className="text-red-400 text-xs mt-1">{transferErrors.amount}</p>}
+                <div className="grid grid-cols-4 gap-1.5 mt-2">
+                  {QUICK_AMOUNTS.map(amt => (
+                    <button key={amt} onClick={() => setTransferAmount(String(amt))}
+                      className={`py-2 rounded-lg text-xs font-semibold border transition-all ${transferAmount === String(amt) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'}`}>
+                      ${amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Referencia */}
+              <div className="mb-4">
+                <p className="text-gray-300 text-sm font-medium mb-2">Número de referencia <span className="text-red-400">*</span></p>
+                <input
+                  type="text" placeholder="Ej: 0012345678"
+                  value={transferRef}
+                  onChange={e => { setTransferRef(e.target.value); setTransferErrors(p => ({ ...p, ref: '' })) }}
+                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all font-mono"
+                  style={{ borderColor: transferErrors.ref ? '#f87171' : undefined }}
+                />
+                {transferErrors.ref
+                  ? <p className="text-red-400 text-xs mt-1">{transferErrors.ref}</p>
+                  : <p className="text-gray-500 text-xs mt-1">Número que aparece en tu comprobante de pago</p>
+                }
+              </div>
+
+              {/* Comprobante URL */}
+              <div className="mb-5">
+                <p className="text-gray-300 text-sm font-medium mb-2">Link al comprobante <span className="text-gray-500 text-xs">(opcional)</span></p>
+                <input
+                  type="url" placeholder="https://drive.google.com/..."
+                  value={transferReceiptUrl}
+                  onChange={e => setTransferReceiptUrl(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all"
+                />
+                <p className="text-gray-500 text-xs mt-1">Sube a Drive o Dropbox y pega el link</p>
+              </div>
+
+              <button
+                onClick={handleTransferSubmit}
+                disabled={transferLoading}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+                {transferLoading
+                  ? <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                  : 'Enviar solicitud'
+                }
+              </button>
+            </div>
+          )}
+
+          {/* Step: success */}
+          {transferStep === 'success' && (
+            <div className="text-center py-6">
+              <div className="text-5xl mb-4">✅</div>
+              <h3 className="text-white font-bold text-xl mb-2">¡Solicitud enviada!</h3>
+              <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                Tu solicitud fue registrada. Un administrador la revisará y acreditará tu saldo en 1–24 horas hábiles.
+              </p>
+              {transferAmount && (
+                <div className="bg-gray-800 rounded-xl p-4 mb-5 border border-gray-700">
+                  <p className="text-gray-400 text-xs mb-1">Monto solicitado</p>
+                  <p className="text-blue-400 font-bold text-3xl">${parseFloat(transferAmount).toFixed(2)}</p>
+                </div>
+              )}
+              <button
+                onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
+                className="w-full py-3.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl text-sm transition-all">
+                Volver al wallet
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Voucher section */}
       <div className="px-4 mb-6">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
         <div className="flex gap-2">
           <input
-            type="text"
-            placeholder="Ej: BIENVENIDA"
+            type="text" placeholder="Ej: BIENVENIDA"
             value={voucherCode}
             onChange={e => setVoucherCode(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && redeemVoucher()}
@@ -329,6 +544,7 @@ function WalletContent() {
         </div>
       </div>
 
+      {/* Transaction history */}
       <div className="px-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Movimientos recientes</p>
         {loading
