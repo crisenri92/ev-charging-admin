@@ -6,7 +6,6 @@ import { MobileToast } from '@/components/MobileToast'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
 
-// ─── Datos bancarios — editar según tu banco ───────────────────────────────
 const BANK_INFO = [
   { label: 'Banco',        value: 'Banco XYZ' },
   { label: 'Titular',      value: 'RecargaT S.A.' },
@@ -15,7 +14,6 @@ const BANK_INFO = [
   { label: 'RUC',          value: '0992345678001' },
   { label: 'Email',        value: 'pagos@recargat.app' },
 ]
-// ───────────────────────────────────────────────────────────────────────────
 
 interface Transaction {
   id: string
@@ -51,8 +49,6 @@ function WalletContent() {
   const [customAmount, setCustomAmount] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const cancelledRef = useRef(false)
-
-  // Payment method state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('deuna')
   const [transferStep, setTransferStep] = useState<TransferStep>('bank-info')
   const [transferAmount, setTransferAmount] = useState('')
@@ -100,19 +96,16 @@ function WalletContent() {
       })
       const pollData = await pollRes.json()
       if (cancelledRef.current) return
-
       if (pollData.status === 'approved') {
         setPendingPayment(null)
         setToast({ msg: '✅ Recarga confirmada. Tu saldo fue actualizado.', type: 'success' })
         loadData()
         return
       }
-
       if (pollData.status === 'failed' || pollData.status === 'expired') {
         setToast({ msg: 'El pago expiró o falló. Intenta de nuevo.', type: 'error' })
         return
       }
-
       setToast({ msg: 'Aún no se confirma el pago. Puedes seguir esperando.', type: 'info' })
     } catch {
       if (!cancelledRef.current) {
@@ -133,18 +126,13 @@ function WalletContent() {
       const res = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          provider: 'deuna',
-          context: 'wallet_recharge',
-          amount,
-        }),
+        body: JSON.stringify({ provider: 'deuna', context: 'wallet_recharge', amount }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) {
         setToast({ msg: data.error || 'No se pudo crear el pago', type: 'error' })
         return
       }
-
       const payment = data.payment as PendingPayment
       setPendingPayment(payment)
       pollPayment(payment.paymentId, token)
@@ -177,7 +165,7 @@ function WalletContent() {
     if (!transferAmount || isNaN(num)) errs.amount = 'Ingresa un monto válido'
     else if (num <= 0) errs.amount = 'El monto debe ser mayor a $0'
     else if (num > 10000) errs.amount = 'El monto máximo es $10,000'
-    if (!transferRef.trim()) errs.ref = 'Ingresa el número de referencia de tu transferencia'
+    if (!transferRef.trim()) errs.ref = 'Ingresa el número de referencia'
     setTransferErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -262,7 +250,6 @@ function WalletContent() {
     <div className="min-h-screen" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 
-      {/* DEUNA payment modal */}
       {pendingPayment && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
@@ -270,43 +257,30 @@ function WalletContent() {
               <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
               <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
-
             {pendingPayment.qrCode && (
               <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
                 <img src={pendingPayment.qrCode} alt="QR de pago Deuna" className="w-56 h-56 object-contain" />
               </div>
             )}
-
             {pendingPayment.deeplink && (
               <a href={pendingPayment.deeplink} target="_blank" rel="noreferrer"
                 className="block text-center bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-xl mb-3">
                 Abrir en Deuna
               </a>
             )}
-
             {pendingPayment.numericCode && (
               <p className="text-center text-gray-300 text-sm mb-3">
                 Código: <span className="font-mono text-white text-lg">{pendingPayment.numericCode}</span>
               </p>
             )}
-
             <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-4">
               {waitingPayment && <div className="h-4 w-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />}
               {waitingPayment ? 'Esperando confirmación de pago…' : 'Si ya pagaste, vuelve a consultar'}
             </div>
-
             <div className="flex gap-2">
-              <button onClick={closePaymentModal} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300">
-                Cancelar
-              </button>
-              <button
-                disabled={waitingPayment}
-                onClick={async () => {
-                  const token = await getToken()
-                  if (!token || !pendingPayment) return
-                  cancelledRef.current = false
-                  pollPayment(pendingPayment.paymentId, token)
-                }}
+              <button onClick={closePaymentModal} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300">Cancelar</button>
+              <button disabled={waitingPayment}
+                onClick={async () => { const token = await getToken(); if (!token || !pendingPayment) return; cancelledRef.current = false; pollPayment(pendingPayment.paymentId, token) }}
                 className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-40">
                 {waitingPayment ? 'Consultando…' : 'Ya pagué'}
               </button>
@@ -315,7 +289,6 @@ function WalletContent() {
         </div>
       )}
 
-      {/* Balance header */}
       <div className="relative overflow-hidden px-4 pt-6 pb-8">
         <div className="absolute inset-0 bg-gradient-to-br from-green-700/40 via-green-800/20 to-transparent" />
         <div className="relative">
@@ -339,24 +312,20 @@ function WalletContent() {
         </div>
       </div>
 
-      {/* Payment method toggle */}
       <div className="px-4 mb-5">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Método de recarga</p>
         <div className="flex gap-2 bg-gray-800/50 p-1 rounded-xl border border-gray-700">
-          <button
-            onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
+          <button onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'deuna' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
             <span>💳</span> Deuna
           </button>
-          <button
-            onClick={() => { setPaymentMethod('transfer'); resetTransfer() }}
+          <button onClick={() => { setPaymentMethod('transfer'); resetTransfer() }}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'transfer' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
             <span>🏦</span> Transferencia
           </button>
         </div>
       </div>
 
-      {/* ── DEUNA flow ─────────────────────────────────────────────────────── */}
       {paymentMethod === 'deuna' && (
         <div className="px-4 mb-6">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
@@ -371,16 +340,12 @@ function WalletContent() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">$</span>
-              <input
-                type="number" min="1" max="500" step="0.01" placeholder="Otro monto"
+              <input type="number" min="1" max="500" step="0.01" placeholder="Otro monto"
                 value={customAmount} onChange={e => setCustomAmount(e.target.value)}
                 className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-green-500 text-sm transition-all"
-                inputMode="decimal"
-              />
+                inputMode="decimal" />
             </div>
-            <button
-              onClick={() => handleRecharge(customAmt)}
-              disabled={busy || !customAmount || customAmt < 1}
+            <button onClick={() => handleRecharge(customAmt)} disabled={busy || !customAmount || customAmt < 1}
               className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
               {recharging ? '...' : 'Recargar'}
             </button>
@@ -388,18 +353,14 @@ function WalletContent() {
         </div>
       )}
 
-      {/* ── TRANSFER flow ──────────────────────────────────────────────────── */}
       {paymentMethod === 'transfer' && (
         <div className="px-4 mb-6">
-          {/* Step: bank info */}
           {transferStep === 'bank-info' && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Datos para la transferencia</p>
               <div className="bg-gray-900 rounded-2xl border border-gray-700 overflow-hidden mb-4">
                 {BANK_INFO.map(({ label, value }) => (
-                  <button
-                    key={label}
-                    onClick={() => copyToClipboard(value, label)}
+                  <button key={label} onClick={() => copyToClipboard(value, label)}
                     className="w-full flex items-center justify-between px-4 py-3.5 border-b border-gray-800 last:border-0 active:bg-gray-800 transition-colors text-left">
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">{label}</p>
@@ -408,8 +369,7 @@ function WalletContent() {
                     <span className="text-xs ml-3">
                       {copiedField === label
                         ? <span className="text-green-400 font-medium">✓ Copiado</span>
-                        : <span className="text-gray-500">⎘</span>
-                      }
+                        : <span className="text-gray-500">⎘</span>}
                     </span>
                   </button>
                 ))}
@@ -420,34 +380,29 @@ function WalletContent() {
                   Realiza la transferencia y luego regresa aquí para registrar el comprobante. Tu saldo se acreditará en 1–24 horas hábiles.
                 </p>
               </div>
-              <button
-                onClick={() => setTransferStep('form')}
+              <button onClick={() => setTransferStep('form')}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold rounded-xl text-sm transition-all">
                 Ya hice la transferencia →
               </button>
             </div>
           )}
 
-          {/* Step: form */}
           {transferStep === 'form' && (
             <div>
               <button onClick={() => setTransferStep('bank-info')} className="flex items-center gap-1 text-gray-400 text-sm mb-4">
                 ← Ver datos bancarios
               </button>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Registrar comprobante</p>
-
-              {/* Monto */}
               <div className="mb-4">
                 <p className="text-gray-300 text-sm font-medium mb-2">Monto transferido (USD) <span className="text-red-400">*</span></p>
-                <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl px-4 focus-within:border-blue-500 transition-colors" style={{ borderColor: transferErrors.amount ? '#f87171' : undefined }}>
+                <div className="flex items-center bg-gray-800 border rounded-xl px-4 focus-within:border-blue-500 transition-colors"
+                  style={{ borderColor: transferErrors.amount ? '#f87171' : '#374151' }}>
                   <span className="text-gray-400 font-medium mr-1">$</span>
-                  <input
-                    type="number" min="0.01" max="10000" step="0.01" placeholder="0.00"
+                  <input type="number" min="0.01" max="10000" step="0.01" placeholder="0.00"
                     value={transferAmount}
                     onChange={e => { setTransferAmount(e.target.value); setTransferErrors(p => ({ ...p, amount: '' })) }}
                     className="flex-1 py-3.5 bg-transparent text-white text-lg font-semibold placeholder-gray-600 focus:outline-none"
-                    inputMode="decimal"
-                  />
+                    inputMode="decimal" />
                 </div>
                 {transferErrors.amount && <p className="text-red-400 text-xs mt-1">{transferErrors.amount}</p>}
                 <div className="grid grid-cols-4 gap-1.5 mt-2">
@@ -459,48 +414,33 @@ function WalletContent() {
                   ))}
                 </div>
               </div>
-
-              {/* Referencia */}
               <div className="mb-4">
                 <p className="text-gray-300 text-sm font-medium mb-2">Número de referencia <span className="text-red-400">*</span></p>
-                <input
-                  type="text" placeholder="Ej: 0012345678"
+                <input type="text" placeholder="Ej: 0012345678"
                   value={transferRef}
                   onChange={e => { setTransferRef(e.target.value); setTransferErrors(p => ({ ...p, ref: '' })) }}
-                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all font-mono"
-                  style={{ borderColor: transferErrors.ref ? '#f87171' : undefined }}
-                />
+                  className="w-full px-4 py-3.5 bg-gray-800 border rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all font-mono"
+                  style={{ borderColor: transferErrors.ref ? '#f87171' : '#374151' }} />
                 {transferErrors.ref
                   ? <p className="text-red-400 text-xs mt-1">{transferErrors.ref}</p>
-                  : <p className="text-gray-500 text-xs mt-1">Número que aparece en tu comprobante de pago</p>
-                }
+                  : <p className="text-gray-500 text-xs mt-1">Número que aparece en tu comprobante de pago</p>}
               </div>
-
-              {/* Comprobante URL */}
               <div className="mb-5">
                 <p className="text-gray-300 text-sm font-medium mb-2">Link al comprobante <span className="text-gray-500 text-xs">(opcional)</span></p>
-                <input
-                  type="url" placeholder="https://drive.google.com/..."
-                  value={transferReceiptUrl}
-                  onChange={e => setTransferReceiptUrl(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all"
-                />
-                <p className="text-gray-500 text-xs mt-1">Sube a Drive o Dropbox y pega el link</p>
+                <input type="url" placeholder="https://drive.google.com/..."
+                  value={transferReceiptUrl} onChange={e => setTransferReceiptUrl(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all" />
+                <p className="text-gray-500 text-xs mt-1">Sube a Drive o Dropbox y pega el link aquí</p>
               </div>
-
-              <button
-                onClick={handleTransferSubmit}
-                disabled={transferLoading}
+              <button onClick={handleTransferSubmit} disabled={transferLoading}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2">
                 {transferLoading
                   ? <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                  : 'Enviar solicitud'
-                }
+                  : 'Enviar solicitud'}
               </button>
             </div>
           )}
 
-          {/* Step: success */}
           {transferStep === 'success' && (
             <div className="text-center py-6">
               <div className="text-5xl mb-4">✅</div>
@@ -514,8 +454,7 @@ function WalletContent() {
                   <p className="text-blue-400 font-bold text-3xl">${parseFloat(transferAmount).toFixed(2)}</p>
                 </div>
               )}
-              <button
-                onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
+              <button onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
                 className="w-full py-3.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl text-sm transition-all">
                 Volver al wallet
               </button>
@@ -524,27 +463,20 @@ function WalletContent() {
         </div>
       )}
 
-      {/* Voucher section */}
       <div className="px-4 mb-6">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
         <div className="flex gap-2">
-          <input
-            type="text" placeholder="Ej: BIENVENIDA"
-            value={voucherCode}
-            onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+          <input type="text" placeholder="Ej: BIENVENIDA"
+            value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && redeemVoucher()}
-            className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm font-mono tracking-widest transition-all uppercase"
-          />
-          <button
-            onClick={redeemVoucher}
-            disabled={redeeming || !voucherCode.trim()}
+            className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm font-mono tracking-widest transition-all uppercase" />
+          <button onClick={redeemVoucher} disabled={redeeming || !voucherCode.trim()}
             className="px-5 py-3 bg-purple-700 hover:bg-purple-600 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
             {redeeming ? '...' : 'Canjear'}
           </button>
         </div>
       </div>
 
-      {/* Transaction history */}
       <div className="px-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Movimientos recientes</p>
         {loading
