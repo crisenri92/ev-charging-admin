@@ -7,36 +7,37 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-
-async function requireAdminUser(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '') ??
-                req.cookies.get('sb-access-token')?.value ?? ''
-  if (!token) return null
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  if (error || !user) return null
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  return profile?.role === 'admin' ? user : null
+function requireAdmin(req: NextRequest): boolean {
+  const token = req.cookies.get('admin_token')?.value
+  const secret = process.env.ADMIN_SECRET || 'ev-admin-secret-2024'
+  return !!token && token === secret
 }
 
 export async function GET(req: NextRequest) {
-  const adminUser = await requireAdminUser(req)
-  if (!adminUser) return NextResponse.json({ error: 'Se requiere rol admin' }, { status: 403 })
+  if (!requireAdmin(req)) {
+    return NextResponse.json({ error: 'Se requiere rol admin' }, { status: 403 })
+  }
 
   try {
     const { data: { users }, error } = await supabase.auth.admin.listUsers()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    const userIds = users.map(u => u.id)
-    const { data: balances } = await supabase
-      .from("user_balances").select("*").in("user_id", userIds)
-    const usersWithBalances = users.map(user => ({
-      id: user.id, email: user.email, created_at: user.created_at,
-      last_sign_in_at: user.last_sign_in_at, user_metadata: user.user_metadata,
-      role: user.user_metadata?.role || "client",
-      balance: balances?.find(b => b.user_id === user.id)?.balance ?? 0,
-      currency: balances?.find(b => b.user_id === user.id)?.currency ?? "USD",
-    }))
-    return NextResponse.json({ users: usersWithBalances })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    if (error) throw error
+    const { data: profiles } = await supabase.from('profiles').select('id, balance, role')
+    const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]))
+
+    const result = (users ?? []).map(u => {
+      const profile: any = profileMap.get(u.id) ?? {}
+      return {
+        id: u.id,
+        email: u.email,
+        balance: profile.balance ?? 0,
+        role: profile.role ?? 'user',
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at,
+      }
+    })
+
+    return NextResponse.json({ users: result })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
