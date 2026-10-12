@@ -7,10 +7,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Bug #3 fix: removed requireAdminUser() — the middleware already validated the admin_token
-// cookie before this handler is reached. Using a local Supabase JWT check was causing
-// 403 because the admin panel never sends a Bearer token, only the admin_token cookie.
+function requireAdmin(req: NextRequest): boolean {
+  const token = req.cookies.get('admin_token')?.value
+  const secret = process.env.ADMIN_SECRET || 'ev-admin-secret-2024'
+  return !!token && token === secret
+}
+
 export async function POST(req: NextRequest) {
+  if (!requireAdmin(req)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
   try {
     const { userId, amount, operation, reason } = await req.json()
     if (!userId || amount === undefined || !operation)
@@ -34,7 +40,6 @@ export async function POST(req: NextRequest) {
     )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Audit trail — log to balance_transactions
     const adjustedAmount =
       operation === 'add' ? Number(amount)
       : operation === 'subtract' ? -Math.min(Number(amount), currentBalance)
@@ -48,7 +53,6 @@ export async function POST(req: NextRequest) {
       balance_after: newBalance,
     })
 
-    // Audit trail — log to audit_logs for admin accountability
     logAuditEvent(
       'admin',
       'user.balance_adjust',
