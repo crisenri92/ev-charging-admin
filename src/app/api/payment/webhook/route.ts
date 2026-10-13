@@ -22,11 +22,24 @@ export async function POST(req: NextRequest) {
     const meta = session.metadata || {}
 
     if (meta.type === 'balance_recharge' && meta.userId && meta.amount) {
+      // Idempotency check: skip if already processed
+      const { data: existingTx } = await supabase
+        .from('balance_transactions')
+        .select('id')
+        .eq('stripe_session_id', session.id)
+        .maybeSingle()
+
+      if (existingTx) {
+        console.log('[Webhook] Evento ya procesado, ignorando:', session.id)
+        return NextResponse.json({ received: true })
+      }
+
       const amount = parseFloat(meta.amount)
+
       const { data: current } = await supabase
         .from('user_balances').select('balance').eq('user_id', meta.userId).single()
       const balanceBefore = parseFloat(current?.balance ?? '0')
-      const balanceAfter  = parseFloat((balanceBefore + amount).toFixed(2))
+      const balanceAfter = parseFloat((balanceBefore + amount).toFixed(2))
 
       const { error: e1 } = await supabase.from('user_balances').upsert(
         { user_id: meta.userId, balance: balanceAfter, currency: 'USD', updated_at: new Date().toISOString() },
@@ -38,13 +51,13 @@ export async function POST(req: NextRequest) {
       }
 
       await supabase.from('balance_transactions').insert({
-        user_id:          meta.userId,
+        user_id: meta.userId,
         amount,
-        type:             'recharge',
-        description:      `Recarga vía Stripe — $${amount}`,
+        type: 'recharge',
+        description: `Recarga vía Stripe — $${amount}`,
         stripe_session_id: session.id,
-        balance_before:   balanceBefore,
-        balance_after:    balanceAfter,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
       })
 
       console.log(`[Webhook] $${amount} acreditado a ${meta.userId} → saldo: $${balanceAfter}`)
