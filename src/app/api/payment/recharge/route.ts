@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser(token)
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://recargat.app'
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -36,8 +38,8 @@ export async function POST(req: NextRequest) {
       mode: 'payment',
       managed_payments: { enabled: false } as any,
       metadata: { type: 'balance_recharge', amount: String(amount), userId: user.id },
-      success_url: 'https://ev-charging-admin-production.up.railway.app/wallet?recharge=success',
-      cancel_url: 'https://ev-charging-admin-production.up.railway.app/wallet',
+      success_url: appUrl + '/wallet?recharge=success',
+      cancel_url: appUrl + '/wallet',
     })
 
     return NextResponse.json({ checkoutUrl: session.url })
