@@ -1,13 +1,10 @@
 'use client'
-import { useState, Suspense } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const sessionExpired = searchParams.get('reason') === 'session_expired'
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -23,17 +20,11 @@ function LoginForm() {
       body: JSON.stringify({ email, password }),
     })
     if (res.ok) {
-      // Registrar timestamp de inicio de sesion para expiracion
-      document.cookie = `session_created_at=${Date.now()}; path=/; SameSite=Strict; max-age=86400`
       router.push('/dashboard')
       router.refresh()
     } else {
-      try {
-        const d = await res.json()
-        setError(d.error || 'Credenciales incorrectas')
-      } catch {
-        setError('Error del servidor. Intenta de nuevo.')
-      }
+      const d = await res.json()
+      setError(d.error || 'Credenciales incorrectas')
     }
     setLoading(false)
   }
@@ -42,21 +33,10 @@ function LoginForm() {
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="bg-gray-900 rounded-2xl shadow-2xl p-8 w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/30 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-blue-400">
-              <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-white">Administrador</h1>
-          <p className="text-gray-400 text-sm mt-1">Panel de gestión Recargat</p>
+          <span className="text-4xl">⚡</span>
+          <h1 className="text-2xl font-bold text-white mt-2">EV Admin</h1>
+          <p className="text-gray-400 text-sm mt-1">Panel de administración</p>
         </div>
-        {sessionExpired && (
-          <div className="mb-4 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-            <p className="text-yellow-400 text-sm text-center">
-              Tu sesión ha expirado. Por favor inicia sesión de nuevo.
-            </p>
-          </div>
-        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
@@ -81,20 +61,15 @@ function LoginForm() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
-        <div className="mt-6 pt-4 border-t border-gray-800 text-center">
-          <Link href="/" className="text-xs text-gray-500 hover:text-gray-400 transition-colors">
+        <div className="flex items-center justify-between mt-4">
+          <Link href="/mobile" className="text-xs text-gray-500 hover:text-gray-300 hover:underline">
             ← Volver al inicio
+          </Link>
+          <Link href="/mobile/login" className="text-xs text-gray-500 hover:underline">
+            Acceso para usuarios →
           </Link>
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
   )
 }
