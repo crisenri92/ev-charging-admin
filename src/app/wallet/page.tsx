@@ -7,13 +7,21 @@ import { MobileToast } from '@/components/MobileToast'
 const QUICK_AMOUNTS = [5, 10, 20, 50]
 
 const BANK_INFO = [
-  { label: 'Banco',        value: 'Banco XYZ' },
-  { label: 'Titular',      value: 'RecargaT S.A.' },
+  { label: 'Banco', value: 'Banco XYZ' },
+  { label: 'Titular', value: 'RecargaT S.A.' },
   { label: 'N° de cuenta', value: '1234567890' },
-  { label: 'Tipo',         value: 'Corriente' },
-  { label: 'RUC',          value: '0992345678001' },
-  { label: 'Email',        value: 'pagos@recargat.app' },
+  { label: 'Tipo', value: 'Corriente' },
+  { label: 'RUC', value: '0992345678001' },
+  { label: 'Email', value: 'pagos@recargat.app' },
 ]
+
+interface MinutePackage {
+  id: string
+  name: string
+  minutes: number
+  price_usd: number
+  description?: string
+}
 
 interface Transaction {
   id: string
@@ -21,6 +29,8 @@ interface Transaction {
   type: string
   description: string
   balance_after: number
+  minutes_amount?: number
+  minutes_after?: number
   created_at: string
 }
 
@@ -37,10 +47,19 @@ interface PendingPayment {
 type PaymentMethod = 'deuna' | 'transfer'
 type TransferStep = 'bank-info' | 'form' | 'success'
 
+const DEFAULT_PACKAGES: MinutePackage[] = [
+  { id: 'default-30',  name: 'Pack 30 min',  minutes: 30,  price_usd: 3.00  },
+  { id: 'default-60',  name: 'Pack 60 min',  minutes: 60,  price_usd: 5.50  },
+  { id: 'default-120', name: 'Pack 120 min', minutes: 120, price_usd: 10.00 },
+  { id: 'default-240', name: 'Pack 240 min', minutes: 240, price_usd: 18.00 },
+]
+
 function WalletContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [balance, setBalance] = useState<number | null>(null)
+  const [minutesBalance, setMinutesBalance] = useState<number | null>(null)
+  const [packages, setPackages] = useState<MinutePackage[]>(DEFAULT_PACKAGES)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [recharging, setRecharging] = useState(false)
@@ -73,14 +92,20 @@ function WalletContent() {
     const token = await getToken()
     if (!token) { router.push('/mobile/login'); return }
     const headers: Record<string, string> = { Authorization: 'Bearer ' + token }
-    const [balRes, histRes] = await Promise.all([
+    const [balRes, histRes, pkgRes] = await Promise.all([
       fetch('/api/wallet/balance', { headers }),
       fetch('/api/wallet/history', { headers }),
+      fetch('/api/wallet/packages'),
     ])
-    const { balance } = await balRes.json()
+    const balData = await balRes.json()
     const { transactions } = await histRes.json()
-    setBalance(balance ?? 0)
+    setBalance(balData.balance ?? 0)
+    setMinutesBalance(balData.minutes_balance ?? 0)
     setTransactions(transactions || [])
+    if (pkgRes.ok) {
+      const pkgData = await pkgRes.json()
+      if (pkgData.packages?.length) setPackages(pkgData.packages)
+    }
     setLoading(false)
   }, [router])
 
@@ -289,8 +314,9 @@ function WalletContent() {
         </div>
       )}
 
+      {/* Balance Header — minutes primary */}
       <div className="relative overflow-hidden px-4 pt-6 pb-8">
-        <div className="absolute inset-0 bg-gradient-to-br from-green-700/40 via-green-800/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-700/40 via-blue-800/20 to-transparent" />
         <div className="relative">
           <button onClick={() => router.back()} className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-4 active:opacity-70 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -299,15 +325,17 @@ function WalletContent() {
             <span className="text-sm font-medium">Volver</span>
           </button>
           <div className="text-center">
-            <p className="text-green-400/80 text-sm font-medium uppercase tracking-widest mb-2">Saldo disponible</p>
+            <p className="text-blue-400/80 text-sm font-medium uppercase tracking-widest mb-2">Minutos disponibles</p>
             {loading
               ? <div className="h-14 w-32 bg-gray-700/50 rounded-xl animate-pulse mx-auto" />
               : <p className="text-6xl font-bold text-white tracking-tight">
-                  <span className="text-3xl text-green-400 align-top mt-2 inline-block mr-1">$</span>
-                  {balance?.toFixed(2)}
+                  {minutesBalance ?? 0}
+                  <span className="text-2xl text-blue-400 ml-2">min</span>
                 </p>
             }
-            <p className="text-gray-500 text-xs mt-3">≈ {loading ? '—' : ((balance ?? 0) / 0.15).toFixed(0)} kWh de carga</p>
+            <p className="text-gray-500 text-xs mt-3">
+              Saldo: {loading ? '—' : <span className="text-green-400">${(balance ?? 0).toFixed(2)}</span>}
+            </p>
           </div>
         </div>
       </div>
@@ -325,188 +353,200 @@ function WalletContent() {
           </button>
         </div>
       </div>
-
+      {/* Deuna payment method */}
       {paymentMethod === 'deuna' && (
-        <div className="px-4 mb-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Recargar saldo</p>
-          <div className="grid grid-cols-4 gap-2 mb-3">
-            {QUICK_AMOUNTS.map(amt => (
-              <button key={amt} onClick={() => handleRecharge(amt)} disabled={busy}
-                className="bg-gray-800 hover:bg-gray-700 active:scale-95 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm transition-all border border-gray-700 hover:border-green-600">
-                ${amt}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">$</span>
-              <input type="number" min="1" max="500" step="0.01" placeholder="Otro monto"
-                value={customAmount} onChange={e => setCustomAmount(e.target.value)}
-                className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-green-500 text-sm transition-all"
-                inputMode="decimal" />
-            </div>
-            <button onClick={() => handleRecharge(customAmt)} disabled={busy || !customAmount || customAmt < 1}
-              className="px-5 py-3 bg-green-600 hover:bg-green-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
-              {recharging ? '...' : 'Recargar'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {paymentMethod === 'transfer' && (
-        <div className="px-4 mb-6">
-          {transferStep === 'bank-info' && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Datos para la transferencia</p>
-              <div className="bg-gray-900 rounded-2xl border border-gray-700 overflow-hidden mb-4">
-                {BANK_INFO.map(({ label, value }) => (
-                  <button key={label} onClick={() => copyToClipboard(value, label)}
-                    className="w-full flex items-center justify-between px-4 py-3.5 border-b border-gray-800 last:border-0 active:bg-gray-800 transition-colors text-left">
-                    <div>
-                      <p className="text-gray-500 text-xs uppercase tracking-wide mb-0.5">{label}</p>
-                      <p className="text-white font-semibold text-sm">{value}</p>
-                    </div>
-                    <span className="text-xs ml-3">
-                      {copiedField === label
-                        ? <span className="text-green-400 font-medium">✓ Copiado</span>
-                        : <span className="text-gray-500">⎘</span>}
-                    </span>
+        <div className="px-4 mb-5">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Elige un paquete</p>
+          {loading
+            ? <div className="grid grid-cols-2 gap-3">
+                {[0,1,2,3].map(i => <div key={i} className="h-24 bg-gray-800/50 rounded-xl animate-pulse" />)}
+              </div>
+            : <div className="grid grid-cols-2 gap-3">
+                {packages.map(pkg => (
+                  <button key={pkg.id}
+                    onClick={() => handleRecharge(pkg.price_usd)}
+                    className="bg-gray-800/60 hover:bg-gray-700/60 active:scale-95 border border-gray-700 hover:border-blue-500/50 rounded-xl p-4 text-left transition-all">
+                    <p className="text-2xl font-bold text-white">{pkg.minutes}<span className="text-blue-400 text-base ml-1">min</span></p>
+                    <p className="text-green-400 font-semibold text-sm mt-1">${pkg.price_usd.toFixed(2)}</p>
+                    {pkg.description && <p className="text-gray-500 text-xs mt-1 truncate">{pkg.description}</p>}
                   </button>
                 ))}
               </div>
-              <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3 mb-4 flex gap-2">
-                <span className="text-base">ℹ️</span>
-                <p className="text-blue-300 text-xs leading-relaxed">
-                  Realiza la transferencia y luego regresa aquí para registrar el comprobante. Tu saldo se acreditará en 1–24 horas hábiles.
-                </p>
+          }
+          <div className="mt-4">
+            <label className="block text-xs text-gray-400 font-medium mb-2">O ingresa monto personalizado</label>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number" inputMode="decimal" min="1" step="0.01"
+                  value={customAmount}
+                  onChange={e => setCustomAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                />
               </div>
-              <button onClick={() => setTransferStep('form')}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold rounded-xl text-sm transition-all">
-                Ya hice la transferencia →
+              <button
+                onClick={() => handleRecharge(parseFloat(customAmount) || 0)}
+                disabled={!customAmount || parseFloat(customAmount) <= 0}
+                className="px-5 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl active:scale-95 transition-all text-sm">
+                Recargar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer payment method */}
+      {paymentMethod === 'transfer' && (
+        <div className="px-4 mb-5">
+          {transferStep === 'info' && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Datos bancarios</p>
+              <div className="space-y-3">
+                {BANK_INFO.map((bank, idx) => (
+                  <div key={idx} className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-semibold text-sm">{bank.bank}</span>
+                      <span className="text-xs text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">{bank.type}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {[['Titular', bank.name], ['Cuenta', bank.account], ['Cédula', bank.id], ['Email', bank.email]].map(([label, val]) => (
+                        <div key={label} className="flex items-center justify-between">
+                          <span className="text-gray-500 text-xs">{label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-200 text-xs font-mono">{val}</span>
+                            <button onClick={() => copyToClipboard(val, label)} className="text-gray-500 hover:text-blue-400 active:scale-90 transition-all text-xs">📋</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setTransferStep('form')}
+                className="mt-4 w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all text-sm">
+                Ya transferí →
               </button>
             </div>
           )}
-
           {transferStep === 'form' && (
             <div>
-              <button onClick={() => setTransferStep('bank-info')} className="flex items-center gap-1 text-gray-400 text-sm mb-4">
-                ← Ver datos bancarios
+              <button onClick={() => setTransferStep('info')} className="flex items-center gap-1.5 text-gray-400 hover:text-white mb-4 text-sm">
+                ← Volver a datos bancarios
               </button>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Registrar comprobante</p>
-              <div className="mb-4">
-                <p className="text-gray-300 text-sm font-medium mb-2">Monto transferido (USD) <span className="text-red-400">*</span></p>
-                <div className="flex items-center bg-gray-800 border rounded-xl px-4 focus-within:border-blue-500 transition-colors"
-                  style={{ borderColor: transferErrors.amount ? '#f87171' : '#374151' }}>
-                  <span className="text-gray-400 font-medium mr-1">$</span>
-                  <input type="number" min="0.01" max="10000" step="0.01" placeholder="0.00"
-                    value={transferAmount}
-                    onChange={e => { setTransferAmount(e.target.value); setTransferErrors(p => ({ ...p, amount: '' })) }}
-                    className="flex-1 py-3.5 bg-transparent text-white text-lg font-semibold placeholder-gray-600 focus:outline-none"
-                    inputMode="decimal" />
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Confirmar transferencia</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Monto transferido</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" inputMode="decimal" min="1" step="0.01"
+                      value={transferData.amount}
+                      onChange={e => setTransferData(p => ({ ...p, amount: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                  </div>
+                  {transferErrors.amount && <p className="text-red-400 text-xs mt-1">{transferErrors.amount}</p>}
                 </div>
-                {transferErrors.amount && <p className="text-red-400 text-xs mt-1">{transferErrors.amount}</p>}
-                <div className="grid grid-cols-4 gap-1.5 mt-2">
-                  {QUICK_AMOUNTS.map(amt => (
-                    <button key={amt} onClick={() => setTransferAmount(String(amt))}
-                      className={`py-2 rounded-lg text-xs font-semibold border transition-all ${transferAmount === String(amt) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'}`}>
-                      ${amt}
-                    </button>
-                  ))}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">N.° de comprobante</label>
+                  <input type="text"
+                    value={transferData.reference}
+                    onChange={e => setTransferData(p => ({ ...p, reference: e.target.value }))}
+                    placeholder="Ej: 20241105123456"
+                    className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                  {transferErrors.reference && <p className="text-red-400 text-xs mt-1">{transferErrors.reference}</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Nombre del titular</label>
+                  <input type="text"
+                    value={transferData.senderName}
+                    onChange={e => setTransferData(p => ({ ...p, senderName: e.target.value }))}
+                    placeholder="Nombre completo"
+                    className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                  {transferErrors.senderName && <p className="text-red-400 text-xs mt-1">{transferErrors.senderName}</p>}
                 </div>
               </div>
-              <div className="mb-4">
-                <p className="text-gray-300 text-sm font-medium mb-2">Número de referencia <span className="text-red-400">*</span></p>
-                <input type="text" placeholder="Ej: 0012345678"
-                  value={transferRef}
-                  onChange={e => { setTransferRef(e.target.value); setTransferErrors(p => ({ ...p, ref: '' })) }}
-                  className="w-full px-4 py-3.5 bg-gray-800 border rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all font-mono"
-                  style={{ borderColor: transferErrors.ref ? '#f87171' : '#374151' }} />
-                {transferErrors.ref
-                  ? <p className="text-red-400 text-xs mt-1">{transferErrors.ref}</p>
-                  : <p className="text-gray-500 text-xs mt-1">Número que aparece en tu comprobante de pago</p>}
-              </div>
-              <div className="mb-5">
-                <p className="text-gray-300 text-sm font-medium mb-2">Link al comprobante <span className="text-gray-500 text-xs">(opcional)</span></p>
-                <input type="url" placeholder="https://drive.google.com/..."
-                  value={transferReceiptUrl} onChange={e => setTransferReceiptUrl(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm transition-all" />
-                <p className="text-gray-500 text-xs mt-1">Sube a Drive o Dropbox y pega el link aquí</p>
-              </div>
-              <button onClick={handleTransferSubmit} disabled={transferLoading}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2">
-                {transferLoading
-                  ? <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-                  : 'Enviar solicitud'}
+              <button
+                onClick={handleTransferSubmit}
+                disabled={transferLoading}
+                className="mt-4 w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 active:scale-[0.98] text-white font-semibold rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+                {transferLoading && <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {transferLoading ? 'Enviando…' : 'Enviar comprobante'}
               </button>
             </div>
           )}
-
           {transferStep === 'success' && (
-            <div className="text-center py-6">
+            <div className="text-center py-8">
               <div className="text-5xl mb-4">✅</div>
-              <h3 className="text-white font-bold text-xl mb-2">¡Solicitud enviada!</h3>
-              <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                Tu solicitud fue registrada. Un administrador la revisará y acreditará tu saldo en 1–24 horas hábiles.
-              </p>
-              {transferAmount && (
-                <div className="bg-gray-800 rounded-xl p-4 mb-5 border border-gray-700">
-                  <p className="text-gray-400 text-xs mb-1">Monto solicitado</p>
-                  <p className="text-blue-400 font-bold text-3xl">${parseFloat(transferAmount).toFixed(2)}</p>
-                </div>
-              )}
-              <button onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
-                className="w-full py-3.5 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl text-sm transition-all">
-                Volver al wallet
+              <p className="text-white font-bold text-lg mb-2">¡Comprobante enviado!</p>
+              <p className="text-gray-400 text-sm mb-6">Revisaremos tu transferencia y acreditaremos tu saldo en breve.</p>
+              <button onClick={resetTransfer} className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium text-sm">
+                Enviar otra
               </button>
             </div>
           )}
         </div>
       )}
-
-      <div className="px-4 mb-6">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
+      {/* Voucher section */}
+      <div className="px-4 mb-5">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear voucher</p>
         <div className="flex gap-2">
-          <input type="text" placeholder="Ej: BIENVENIDA"
-            value={voucherCode} onChange={e => setVoucherCode(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && redeemVoucher()}
-            className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm font-mono tracking-widest transition-all uppercase" />
-          <button onClick={redeemVoucher} disabled={redeeming || !voucherCode.trim()}
-            className="px-5 py-3 bg-purple-700 hover:bg-purple-600 active:scale-95 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all whitespace-nowrap">
-            {redeeming ? '...' : 'Canjear'}
+          <input
+            type="text"
+            value={voucherCode}
+            onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+            placeholder="Código de voucher"
+            className="flex-1 px-3 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm font-mono uppercase"
+          />
+          <button
+            onClick={redeemVoucher}
+            disabled={!voucherCode || redeeming}
+            className="px-4 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-semibold rounded-xl active:scale-95 transition-all text-sm">
+            {redeeming ? '…' : 'Canjear'}
           </button>
         </div>
       </div>
 
+      {/* Transaction history */}
       <div className="px-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Movimientos recientes</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Historial</p>
         {loading
-          ? <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 bg-gray-800/50 rounded-xl animate-pulse" />)}</div>
+          ? <div className="space-y-3">
+              {[0,1,2].map(i => <div key={i} className="h-16 bg-gray-800/50 rounded-xl animate-pulse" />)}
+            </div>
           : transactions.length === 0
-          ? (
-            <div className="bg-gray-900 rounded-xl p-8 text-center">
-              <p className="text-3xl mb-2">💳</p>
-              <p className="text-gray-500 text-sm">Sin movimientos aún</p>
-            </div>
-          )
-          : (
-            <div className="bg-gray-900 rounded-2xl overflow-hidden divide-y divide-gray-800">
-              {transactions.slice(0, 20).map((t: Transaction) => (
-                <div key={t.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="text-xl w-8 text-center flex-shrink-0">{txIcon(t.type, t.amount)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{t.description || (t.amount > 0 ? 'Recarga' : 'Carga eléctrica')}</p>
-                    <p className="text-gray-500 text-xs">{formatDate(t.created_at)}</p>
+            ? <div className="text-center py-10 text-gray-600">
+                <p className="text-3xl mb-2">📋</p>
+                <p className="text-sm">Sin transacciones aún</p>
+              </div>
+            : <div className="space-y-2">
+                {transactions.map(t => (
+                  <div key={t.id} className="bg-gray-800/40 hover:bg-gray-800/60 border border-gray-700/50 rounded-xl p-3.5 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <span className="text-xl mt-0.5 flex-shrink-0">{txIcon(t.type)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-white text-sm font-medium truncate">{t.description || t.type}</p>
+                          <span className={`text-sm font-semibold flex-shrink-0 ${t.type === 'recharge' || t.type === 'transfer' ? 'text-green-400' : 'text-red-400'}`}>
+                            {t.type === 'recharge' || t.type === 'transfer' ? '+' : '-'}${Math.abs(t.amount).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-gray-500 text-xs">{formatDate(t.created_at)}</p>
+                          {t.minutes_amount ? (
+                            <span className={`text-xs ${t.type === 'recharge' || t.type === 'transfer' ? 'text-blue-400' : 'text-orange-400'}`}>
+                              {t.type === 'recharge' || t.type === 'transfer' ? '+' : '-'}{Math.abs(t.minutes_amount)} min
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`font-bold text-sm ${t.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {t.amount > 0 ? '+' : ''}{t.amount.toFixed(2)}
-                    </p>
-                    <p className="text-gray-600 text-xs">${t.balance_after?.toFixed(2)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
+                ))}
+              </div>
         }
       </div>
     </div>
@@ -515,7 +555,11 @@ function WalletContent() {
 
 export default function WalletPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}><div className="animate-spin rounded-full h-10 w-10 border-2 border-green-400 border-t-transparent" /></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f172a' }}>
+        <div className="h-8 w-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
       <WalletContent />
     </Suspense>
   )
