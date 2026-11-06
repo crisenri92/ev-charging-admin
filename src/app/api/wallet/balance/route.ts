@@ -19,9 +19,13 @@ export async function GET(req: NextRequest) {
 
   const { data } = await supabase
     .from('user_balances')
-    .select('balance, currency')
+    .select('balance, currency, minutes_balance')
     .eq('user_id', user.id)
     .single()
 
-  return NextResponse.json({ balance: data?.balance || 0, currency: data?.currency || 'USD' })
+  return NextResponse.json({
+    balance: data?.balance || 0,
+    currency: data?.currency || 'USD',
+    minutes_balance: data?.minutes_balance || 0,
+  })
 }
