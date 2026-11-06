@@ -23,6 +23,7 @@ export interface ApplyApprovedExtras {
 export interface ApplyApprovedResult {
   alreadyProcessed: boolean;
   newBalance?: number;
+  minutesAfter?: number;
   authorizationCreated?: boolean;
 }
 
@@ -52,21 +53,27 @@ export async function applyApprovedPayment(
   if (payment.context === PaymentContext.WALLET_RECHARGE) {
     const { data: balanceRow } = await supabase
       .from('user_balances')
-      .select('balance')
+      .select('balance, minutes_balance')
       .eq('user_id', payment.user_id)
       .single();
 
     const balanceBefore = parseFloat(balanceRow?.balance || '0');
+    const minutesBefore = parseInt(String(balanceRow?.minutes_balance ?? 0));
     const amount = parseFloat(payment.amount.toString());
     const balanceAfter = parseFloat((balanceBefore + amount).toFixed(2));
 
+    // Look up package minutes for this price
+    const { data: pkg } = await supabase
+      .from('minute_packages')
+      .select('minutes')
+      .eq('price_usd', amount)
+      .eq('active', true)
+      .single();
+    const minutesToAdd = pkg?.minutes ?? Math.round(amount * 10);
+    const minutesAfter = minutesBefore + minutesToAdd;
+
     await supabase.from('user_balances').upsert(
-      {
-        user_id: payment.user_id,
-        balance: balanceAfter,
-        currency: 'USD',
-        updated_at: new Date().toISOString(),
-      },
+      { user_id: payment.user_id, balance: balanceAfter, minutes_balance: minutesAfter, currency: 'USD', updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
 
@@ -82,15 +89,20 @@ export async function applyApprovedPayment(
       gateway_metadata: extras.providerPayload || {},
       deuna_transaction_id: payment.payment_id,
       deuna_transfer_number: extras.transferNumber,
+      minutes_amount: minutesToAdd,
+      minutes_before: minutesBefore,
+      minutes_after: minutesAfter,
     });
 
     console.log('[ApplyApprovedPayment] Wallet recharged', {
       userId: payment.user_id,
       amount,
       newBalance: balanceAfter,
+      minutes: minutesToAdd,
+      minutesBalance: minutesAfter,
     });
 
-    return { alreadyProcessed: false, newBalance: balanceAfter };
+    return { alreadyProcessed: false, newBalance: balanceAfter, minutesAfter };
   }
 
   if (payment.context === PaymentContext.DIRECT_CHARGE) {
@@ -106,7 +118,6 @@ export async function applyApprovedPayment(
       payment.id,
       parseFloat(payment.amount.toString()),
       payment.provider,
-      30
     );
 
     console.log('[ApplyApprovedPayment] Charging authorized', {
