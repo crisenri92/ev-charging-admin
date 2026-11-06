@@ -73,22 +73,33 @@ export async function PATCH(req: NextRequest) {
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-    // If approved, credit the balance
+    // If approved, credit the balance and minutes
     if (status === 'approved') {
       const amount = Number(tr.amount)
       const userId = tr.user_id
 
       const { data: current } = await supabase
         .from('user_balances')
-        .select('balance')
+        .select('balance, minutes_balance')
         .eq('user_id', userId)
         .single()
 
       const balanceBefore = Number(current?.balance ?? 0)
+      const minutesBefore = parseInt(String(current?.minutes_balance ?? 0))
       const balanceAfter = parseFloat((balanceBefore + amount).toFixed(2))
 
+      // Look up package minutes for this price
+      const { data: pkg } = await supabase
+        .from('minute_packages')
+        .select('minutes')
+        .eq('price_usd', amount)
+        .eq('active', true)
+        .single()
+      const minutesToAdd = pkg?.minutes ?? Math.round(amount * 10)
+      const minutesAfter = minutesBefore + minutesToAdd
+
       const { error: balErr } = await supabase.from('user_balances').upsert(
-        { user_id: userId, balance: balanceAfter, currency: tr.currency || 'USD', updated_at: new Date().toISOString() },
+        { user_id: userId, balance: balanceAfter, minutes_balance: minutesAfter, currency: tr.currency || 'USD', updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       )
       if (balErr) return NextResponse.json({ error: 'Error acreditando saldo: ' + balErr.message }, { status: 500 })
@@ -100,6 +111,9 @@ export async function PATCH(req: NextRequest) {
         description: `Transferencia aprobada — ref: ${tr.reference_number || tr.id}`,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
+        minutes_amount: minutesToAdd,
+        minutes_before: minutesBefore,
+        minutes_after: minutesAfter,
       })
     }
 
