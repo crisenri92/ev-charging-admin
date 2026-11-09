@@ -16,7 +16,7 @@ interface Charger {
   longitude: number | null
   address: string | null
 }
-interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
+interface Receipt { chargerName: string; balance: number; minutesBalance?: number; sessionId: string; startedAt: string }
 interface Reservation { id: string; charger_id: string; charger_name: string; expires_at: string; duration_minutes: number }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -286,6 +286,7 @@ function MobileContent() {
   const [qrConfirm, setQrConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
+const [minutesBalance, setMinutesBalance] = useState<number | null>(null)
   const [user, setUser] = useState<any>(null)
   const [mapView, setMapView] = useState(true)
   const [currentPricing, setCurrentPricing] = useState<{ price: number; ruleName: string } | null>(null)
@@ -310,7 +311,7 @@ function MobileContent() {
       if (!session) { router.push('/mobile/login'); return }
       setUser(session.user)
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
-        .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
+        .then(r => r.json()).then(d => { setBalance(d.balance ?? 0); setMinutesBalance(d.minutes_balance ?? 0) }).catch(() => {})
       fetchReservations(session.access_token)
           supabase.from('charging_sessions').select('charger_id, started_at, charger_name').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
             if (data) setActiveSession({ charger_id: data.charger_id, charger_name: data.charger_name || data.charger_id, started_at: data.started_at || new Date().toISOString() })
@@ -364,7 +365,7 @@ function MobileContent() {
       if (myRes) {
         await fetch('/api/reservations', { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ id: myRes.id }) })
       }
-      setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, sessionId: data.sessionId, startedAt: new Date().toISOString() })
+      setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, minutesBalance: minutesBalance ?? undefined, sessionId: data.sessionId, startedAt: new Date().toISOString() })
       setBalance(data.balance ?? 0)
       fetchChargers()
       fetchReservations(session.access_token)
@@ -446,7 +447,7 @@ function MobileContent() {
           <MapToggle mapView={mapView} onToggle={() => setMapView(v => !v)} />
           <button onClick={() => router.push('/wallet')}
             className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
-            <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
+            <span className="text-blue-400 text-sm font-bold">{minutesBalance !== null ? `${minutesBalance} min` : '...'}</span>
           </button>
           <button onClick={() => router.push('/mobile/profile')}
             className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -518,7 +519,7 @@ function MobileContent() {
       )}
 
       {/* List view */}
-      {activeSession && <ActiveSessionBanner session={activeSession} />}
+      {activeSession && <ActiveSessionBanner session={activeSession} minutesBalance={minutesBalance} />}
 
       {!mapView && (<>
         <div className="px-4 mb-3" role="search">
