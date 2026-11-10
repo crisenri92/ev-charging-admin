@@ -10,7 +10,7 @@ const BANK_INFO = {
   account: '2203417047',
   type: 'Transaccional',
   id: '1720026937',
-  email: 'pagos@recargat.app',
+  email: 'crisenri92@gmail.com',
 }
 
 interface MinutePackage {
