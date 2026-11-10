@@ -16,28 +16,44 @@ export async function POST(req: NextRequest) {
   const { email, password, fullName } = await req.json()
 
   if (!email || !password) {
-    return NextResponse.json({ error: 'Email y contraseña requeridos' }, { status: 400 })
+    return NextResponse.json({ error: 'Email y contrasena requeridos' }, { status: 400 })
   }
 
-  // Create user directly with admin API — no confirmation email sent
-  const { data, error } = await adminDb.auth.admin.createUser({
+  // Use anon client signUp -- Supabase sends confirmation email automatically
+  const anonDb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://recargat.app'}/mobile/login`
+
+  const { data, error } = await anonDb.auth.signUp({
     email,
     password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName || '' },
+    options: {
+      data: { full_name: fullName || '' },
+      emailRedirectTo: redirectTo,
+    },
   })
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  const userId = data.user.id
+  // Supabase returns identities: [] when email already registered (security behavior)
+  if (data.user && data.user.identities?.length === 0) {
+    return NextResponse.json({ error: 'Este correo ya esta registrado.' }, { status: 400 })
+  }
 
-  // Initialize wallet
-  await adminDb.from('user_balances').upsert(
-    { user_id: userId, balance: 0 },
-    { onConflict: 'user_id', ignoreDuplicates: true }
-  )
+  const userId = data.user?.id
+  if (userId) {
+    // Initialize wallet immediately -- user exists in DB even though unconfirmed
+    await adminDb.from('user_balances').upsert(
+      { user_id: userId, balance: 0 },
+      { onConflict: 'user_id', ignoreDuplicates: true }
+    )
+  }
 
-  return NextResponse.json({ ok: true, userId, email: data.user.email })
+  return NextResponse.json({ ok: true, requiresConfirmation: true })
 }
