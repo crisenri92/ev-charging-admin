@@ -19,8 +19,25 @@ export default function MobileLoginPage() {
     setLoading(true)
     setError('')
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+      // Detect admin users and redirect them to the dashboard
+      const accessToken = data?.session?.access_token
+      if (accessToken) {
+        try {
+          const checkRes = await fetch('/api/admin/check', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          const { isAdmin } = await checkRes.json()
+          if (isAdmin) {
+            router.push('/dashboard')
+            return
+          }
+        } catch {
+          // If admin check fails, continue to mobile app
+        }
+      }
       router.push('/mobile')
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión')
