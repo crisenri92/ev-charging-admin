@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Public paths that don't require admin authentication
+// Public paths — no admin token required
 const PUBLIC_PATHS = ['/login', '/mobile', '/forgot-password']
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('admin_token')?.value
   const { pathname } = request.nextUrl
 
-  // Allow all public paths and their sub-paths
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
   if (isPublic) return NextResponse.next()
 
