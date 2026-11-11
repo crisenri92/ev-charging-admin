@@ -1,19 +1,26 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Public paths — no admin token required
-const PUBLIC_PATHS = ['/login', '/mobile', '/forgot-password']
+// Only these routes require admin token — everything else passes through
+// and handles its own auth (e.g. Supabase session for user-facing pages)
+const ADMIN_PATHS = ['/dashboard', '/users', '/chargers', '/transfers', '/audit']
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('admin_token')?.value
   const { pathname } = request.nextUrl
 
-  const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
-  if (isPublic) return NextResponse.next()
+  // Allow /login itself (admin login page)
+  if (pathname === '/login') return NextResponse.next()
 
+  // Check if this is an admin-protected route
+  const isAdminRoute = ADMIN_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+  if (!isAdminRoute) return NextResponse.next()
+
+  // Require admin token for admin routes
+  const token = request.cookies.get('admin_token')?.value
   if (!token || token !== process.env.ADMIN_SECRET) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
+
   return NextResponse.next()
 }
 
