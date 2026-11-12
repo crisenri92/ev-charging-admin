@@ -24,7 +24,6 @@ const UserIcon = () => (
 <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
 </svg>
 )
-
 const ShieldIcon = () => (
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
 <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.75.75 0 00.374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 00-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08zm3.094 8.016a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
@@ -46,6 +45,12 @@ const TransferIcon = () => (
 <path fillRule="evenodd" d="M22.5 9.75h-21v7.5a3 3 0 003 3h15a3 3 0 003-3v-7.5zm-18 3.75a.75.75 0 01.75-.75h6a.75.75 0 010 1.5h-6a.75.75 0 01-.75-.75zm.75 2.25a.75.75 0 000 1.5h3a.75.75 0 000-1.5h-3z" clipRule="evenodd" />
 </svg>
 )
+const OcppIcon = () => (
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+<path fillRule="evenodd" d="M2.25 6a3 3 0 013-3h13.5a3 3 0 013 3v12a3 3 0 01-3 3H5.25a3 3 0 01-3-3V6zm3.97.97a.75.75 0 011.06 0l2.25 2.25a.75.75 0 010 1.06l-2.25 2.25a.75.75 0 01-1.06-1.06l1.72-1.72-1.72-1.72a.75.75 0 010-1.06zm4.28 4.28a.75.75 0 000 1.5h3a.75.75 0 000-1.5h-3z" clipRule="evenodd" />
+</svg>
+)
+
 const navItems = [
 { href: '/dashboard', label: 'Dashboard', Icon: BoltIcon },
 { href: '/chargers', label: 'Cargadores', Icon: PlugIcon },
@@ -55,6 +60,7 @@ const navItems = [
 { href: '/pricing', label: 'Tarifas', Icon: TagIcon },
 { href: '/vouchers', label: 'Vouchers', Icon: GiftIcon },
 { href: '/transfers', label: 'Transferencias', Icon: TransferIcon },
+{ href: '/admin/ocpp', label: 'OCPP', Icon: OcppIcon },
 ]
 
 export default function Sidebar() {
@@ -100,7 +106,7 @@ return (
 
 <nav className="flex flex-col gap-1 flex-1">
 {navItems.map(({ href, label, Icon }) => {
-const active = pathname === href
+const active = pathname === href || pathname.startsWith(href + '/')
 return (
 <Link key={href} href={href} onClick={() => setOpen(false)}
 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}>
