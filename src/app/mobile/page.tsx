@@ -19,6 +19,7 @@ address: string | null
 interface Receipt { chargerName: string; balance: number; minutesBalance?: number; sessionId: string; startedAt: string }
 interface Reservation { id: string; charger_id: string; charger_name: string; expires_at: string; duration_minutes: number }
 interface ActiveSession { id: string; charger_id: string; charger_name: string; started_at: string }
+interface StopSummary { chargerName: string; elapsedSeconds: number; cost: number; newBalance: number; minutesBalance: number | null }
 
 const STATUS_COLOR: Record<string, string> = {
 available: 'bg-green-500', charging: 'bg-yellow-500', offline: 'bg-red-500', unavailable: 'bg-gray-600',
@@ -103,6 +104,43 @@ return (
 </div>
 </div>
 )
+}
+
+function StopSummaryModal({ summary, onClose }: { summary: StopSummary; onClose: () => void }) {
+  const h = Math.floor(summary.elapsedSeconds / 3600)
+  const m = Math.floor((summary.elapsedSeconds % 3600) / 60)
+  const s = summary.elapsedSeconds % 60
+  const timeStr = h > 0 ? `${h}h ${String(m).padStart(2,'0')}min` : m > 0 ? `${m}min ${String(s).padStart(2,'0')}s` : `${s}s`
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 px-4 pt-4" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
+        <div className="w-16 h-16 rounded-full bg-red-900/40 border-2 border-red-600 flex items-center justify-center text-2xl mx-auto mb-4">{'⏹'}</div>
+        <h2 className="text-xl font-bold text-white mb-1">Carga detenida</h2>
+        <p className="text-gray-400 text-sm mb-5">{summary.chargerName}</p>
+        <div className="bg-gray-800 rounded-2xl p-4 text-left space-y-3 mb-5">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400 text-sm">Tiempo cargado</span>
+            <span className="text-white text-sm font-semibold font-mono">{timeStr}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400 text-sm">Costo de sesión</span>
+            <span className="text-orange-400 text-sm font-bold">${summary.cost.toFixed(2)}</span>
+          </div>
+          {summary.minutesBalance !== null && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400 text-sm">Minutos restantes</span>
+              <span className="text-blue-400 text-sm font-semibold">{summary.minutesBalance} min</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-2 border-t border-gray-700">
+            <span className="text-gray-400 text-sm">Saldo restante</span>
+            <span className="text-green-400 text-lg font-bold">${summary.newBalance.toFixed(2)}</span>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-full py-3.5 bg-gray-700 hover:bg-gray-600 active:scale-[0.98] text-white font-semibold rounded-2xl transition-all">Cerrar</button>
+      </div>
+    </div>
+  )
 }
 
 function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
@@ -305,6 +343,7 @@ const [reserveModal, setReserveModal] = useState<Charger | null>(null)
 const [reservingCharger, setReservingCharger] = useState<string | null>(null)
 const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
 const [stopLoading, setStopLoading] = useState(false)
+  const [stopSummary, setStopSummary] = useState<StopSummary | null>(null)
 const [searchQuery, setSearchQuery] = useState('')
 const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
 
@@ -386,6 +425,7 @@ finally { setLoadingCharger(null) }
 async function stopCharge() {
 if (!activeSession || stopLoading) return
 setStopLoading(true)
+const elapsedSeconds = Math.floor((Date.now() - new Date(activeSession.started_at).getTime()) / 1000)
 try {
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) return
@@ -395,8 +435,25 @@ headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.
 body: JSON.stringify({ sessionId: activeSession.id, chargerId: activeSession.charger_id }),
 })
 if (res.ok) {
+const d = await res.json()
+let updatedMins = minutesBalance
+let updatedBalance = balance ?? 0
+try {
+const walletRes = await fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
+const walletData = await walletRes.json()
+updatedMins = walletData.minutes_balance ?? minutesBalance
+updatedBalance = walletData.balance ?? updatedBalance
+setBalance(updatedBalance)
+setMinutesBalance(updatedMins)
+} catch {}
+setStopSummary({
+chargerName: activeSession.charger_name,
+elapsedSeconds,
+cost: d.cost ?? 0,
+newBalance: d.newBalance ?? updatedBalance,
+minutesBalance: updatedMins,
+})
 setActiveSession(null)
-setToast({ msg: '✓ Carga detenida', type: 'success' })
 fetchChargers()
 } else {
 const d = await res.json()
@@ -464,6 +521,7 @@ return (
 {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
 {qrConfirm && <QrConfirmModal chargerId={qrConfirm} charger={qrCharger} onConfirm={() => startCharge(qrConfirm)} onCancel={() => { setQrConfirm(null); router.replace('/mobile') }} loading={loadingCharger === qrConfirm} />}
 {receipt && <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
+{stopSummary && <StopSummaryModal summary={stopSummary} onClose={() => setStopSummary(null)} />}
 {reserveModal && (
 <ReserveModal charger={reserveModal} loading={reservingCharger === reserveModal.id}
 onConfirm={mins => createReservation(reserveModal, mins)}
