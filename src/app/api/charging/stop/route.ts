@@ -5,6 +5,24 @@ import { getCurrentPrice } from '@/lib/pricing'
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
+/** Envía RemoteStopTransaction al CSMS. Best-effort, no lanza si falla. */
+async function sendRemoteStop(chargerId: string): Promise<void> {
+  const ocppServerUrl = process.env.OCPP_SERVER_URL
+  if (!ocppServerUrl) return
+  try {
+    const chargerRes = await fetch(`${ocppServerUrl}/api/chargers`)
+    if (!chargerRes.ok) return
+    const chargers: Array<{ id: string; activeSession: { transactionId: number } | null }> = await chargerRes.json()
+    const csmsCharger = chargers.find(c => c.id === chargerId || c.id.replace(/_/g, '') === chargerId.replace(/_/g, ''))
+    if (!csmsCharger?.activeSession?.transactionId) return
+    await fetch(`${ocppServerUrl}/api/admin/chargers/${csmsCharger.id}/remote-stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OCPP_API_SECRET || 'ev-admin-2024'}` },
+      body: JSON.stringify({ transactionId: csmsCharger.activeSession.transactionId }),
+    })
+  } catch { /* best-effort */ }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -21,6 +39,10 @@ export async function POST(req: NextRequest) {
     if (!sessions || sessions.length === 0) return NextResponse.json({ message: 'No active session found' })
 
     const session = sessions[0]
+
+    // Enviar RemoteStop al cargador físico (best-effort)
+    await sendRemoteStop(session.charger_id)
+
     const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null) ? (meterStop - (meterStart ?? session.meter_start)) / 1000 : 0
     const { price: pricePerKwh } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
