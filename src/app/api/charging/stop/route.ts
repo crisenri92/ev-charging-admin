@@ -10,15 +10,44 @@ async function sendRemoteStop(chargerId: string): Promise<void> {
   const ocppServerUrl = process.env.OCPP_SERVER_URL
   if (!ocppServerUrl) return
   try {
-    const chargerRes = await fetch(`${ocppServerUrl}/api/chargers`)
-    if (!chargerRes.ok) return
-    const chargers: Array<{ id: string; activeSession: { transactionId: number } | null }> = await chargerRes.json()
-    const csmsCharger = chargers.find(c => c.id === chargerId || c.id.replace(/_/g, '') === chargerId.replace(/_/g, ''))
-    if (!csmsCharger?.activeSession?.transactionId) return
-    await fetch(`${ocppServerUrl}/api/admin/chargers/${csmsCharger.id}/remote-stop`, {
+    // Step 1: obtener estado del CSMS en memoria
+    let csmsChargerId = chargerId
+    let transactionId: number | null = null
+
+    const chargerRes = await fetch(`${ocppServerUrl}/api/chargers`, {
+      headers: { Authorization: `Bearer ${process.env.OCPP_API_SECRET || 'ev-admin-2024'}` },
+    })
+    if (chargerRes.ok) {
+      const chargers: Array<{ id: string; activeSession: { transactionId: number } | null }> = await chargerRes.json()
+      const csmsCharger = chargers.find(c => c.id === chargerId || c.id.replace(/_/g, '') === chargerId.replace(/_/g, ''))
+      if (csmsCharger) {
+        csmsChargerId = csmsCharger.id
+        transactionId = csmsCharger.activeSession?.transactionId ?? null
+      }
+    }
+
+    // Step 2: fallback — buscar transactionId en tabla sessions del CSMS (mismo Supabase)
+    if (!transactionId) {
+      const { data: csmsSession } = await supabase
+        .from('sessions')
+        .select('transaction_id, charger_id')
+        .eq('status', 'Active')
+        .or(`charger_id.eq.${chargerId},charger_id.eq.${chargerId.replace(/_/g, '')}`)
+        .order('start_time', { ascending: false })
+        .limit(1)
+        .single()
+      if (csmsSession?.transaction_id) {
+        transactionId = csmsSession.transaction_id
+        csmsChargerId = csmsSession.charger_id
+      }
+    }
+
+    if (!transactionId) return  // sin transacción activa
+
+    await fetch(`${ocppServerUrl}/api/admin/chargers/${csmsChargerId}/remote-stop`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OCPP_API_SECRET || 'ev-admin-2024'}` },
-      body: JSON.stringify({ transactionId: csmsCharger.activeSession.transactionId }),
+      body: JSON.stringify({ transactionId }),
     })
   } catch { /* best-effort */ }
 }
