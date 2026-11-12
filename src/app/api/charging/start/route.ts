@@ -77,6 +77,12 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    // Actualizar estado del cargador a Charging
+    await supabase
+      .from('chargers')
+      .update({ status: 'Charging' })
+      .eq('id', chargerId)
+
     if (authorization) {
       await supabase
         .from('charging_authorizations')
