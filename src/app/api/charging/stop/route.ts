@@ -1,108 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuthFromRequest, checkRateLimit, supabaseAdmin } from '@/lib/api-helpers'
+import { createClient } from '@supabase/supabase-js'
 import { getCurrentPrice } from '@/lib/pricing'
 
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://ev-charging-admin-production.up.railway.app'
 
 export async function POST(req: NextRequest) {
-  // Authenticate user (mobile Bearer token or web cookie)
-  let user: any
-  try {
-    const auth = await requireAuthFromRequest(req)
-    user = auth.user
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  // Rate limit
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!checkRateLimit(ip).ok) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-  }
-
-  const supabase = supabaseAdmin()
-
   try {
     const body = await req.json()
     const { chargerId, sessionId, meterStart, meterStop, reason } = body
 
-    // Validate session ownership before stopping
-    if (sessionId) {
-      const { data: owned } = await supabase
-        .from('charging_sessions')
-        .select('id')
-        .eq('id', sessionId)
-        .eq('user_id', user.id)
-        .single()
-      if (!owned) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    // Find active session - by sessionId first, then by chargerId
     let sessionQuery = supabase.from('charging_sessions').select('*').eq('status', 'active')
     if (sessionId) {
       sessionQuery = sessionQuery.eq('id', sessionId)
     } else if (chargerId) {
       const normalizedId = (chargerId as string).replace(/_/g, '')
-      sessionQuery = sessionQuery
-        .eq('charger_id', normalizedId)
-        .eq('user_id', user.id)
-        .order('started_at', { ascending: false })
-        .limit(1)
+      sessionQuery = sessionQuery.eq('charger_id', normalizedId).order('started_at', { ascending: false }).limit(1)
     }
     const { data: sessions } = await sessionQuery
-    if (!sessions || sessions.length === 0) {
-      return NextResponse.json({ message: 'No active session found' })
-    }
+    if (!sessions || sessions.length === 0) return NextResponse.json({ message: 'No active session found' })
 
     const session = sessions[0]
-    const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null)
-      ? (meterStop - (meterStart ?? session.meter_start)) / 1000
-      : 0
+    const energyKwh = (meterStop != null && (meterStart ?? session.meter_start) != null) ? (meterStop - (meterStart ?? session.meter_start)) / 1000 : 0
     const { price: pricePerKwh } = await getCurrentPrice(process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
     const now = new Date().toISOString()
 
-    // Atomic RPC: closes session + deducts balance + inserts transaction in one DB transaction
-    const { data: rpcData, error: rpcError } = await supabase.rpc('close_charging_session', {
-      p_session_id: session.id,
-      p_user_id: session.user_id,
-      p_energy_kwh: energyKwh,
-      p_cost: cost,
-      p_stop_meter: meterStop ?? null,
-      p_stop_time: now,
-      p_stop_reason: reason || 'Remote',
-    })
+    await supabase.from('charging_sessions').update({
+      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote', meter_start: (meterStart ?? session.meter_start) ?? null, meter_stop: meterStop ?? null,
+    }).eq('id', session.id)
 
-    if (rpcError) {
-      console.error('close_charging_session RPC failed:', rpcError)
-      return NextResponse.json({ error: rpcError.message }, { status: 500 })
-    }
+    // Restaurar estado del cargador a Available
+    await supabase.from('chargers').update({ status: 'Available' }).eq('id', session.charger_id)
 
-    const balanceAfter: number = (rpcData as any)?.balance_after ?? 0
-
-    // Send push notification (non-blocking)
     if (cost > 0) {
+      const { data: balanceRow } = await supabase.from('user_balances').select('balance').eq('user_id', session.user_id).single()
+      const currentBalance = balanceRow?.balance || 0
+      const newBalance = Math.max(0, currentBalance - cost)
+      await supabase.from('user_balances').update({ balance: newBalance }).eq('user_id', session.user_id)
+      await supabase.from('balance_transactions').insert({
+        user_id: session.user_id, amount: -cost,
+        type: 'charge_deduction',
+        description: `Sesión de carga - ${session.charger_name || session.charger_id} - ${energyKwh.toFixed(3)} kWh`,
+        balance_after: newBalance, reference_id: session.id,
+      })
+
+      // Send push notification
       try {
         await fetch(`${APP_URL}/api/push/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: session.user_id,
-            title: 'Carga completada',
-            body: `${energyKwh.toFixed(2)} kWh - $${cost.toFixed(2)} descontado - Saldo: $${balanceAfter.toFixed(2)}`,
+            title: '⚡ Carga completada',
+            body: `${energyKwh.toFixed(2)} kWh · $${cost.toFixed(2)} descontado · Saldo: $${newBalance.toFixed(2)}`,
             url: '/mobile/historial',
           }),
         })
-      } catch (pushErr) {
-        console.error('[Stop] Push notification failed:', pushErr)
-      }
+      } catch {} // non-blocking
     }
 
     return NextResponse.json({ ok: true, sessionId: session.id, cost, energyKwh })
   } catch (err: any) {
-    console.error('[Charging Stop] Error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
