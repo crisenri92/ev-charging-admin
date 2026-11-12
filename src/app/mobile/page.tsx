@@ -137,6 +137,10 @@ function StopSummaryModal({ summary, onClose }: { summary: StopSummary; onClose:
             <span className="text-green-400 text-lg font-bold">${summary.newBalance.toFixed(2)}</span>
           </div>
         </div>
+        <div className="flex items-center gap-2 bg-yellow-900/20 border border-yellow-700/30 rounded-xl px-3 py-2.5 mb-4">
+          <span className="text-yellow-400 text-lg flex-shrink-0">{'🔌'}</span>
+          <p className="text-yellow-300 text-xs text-left">Desconecta el cable del vehículo para liberar el cargador</p>
+        </div>
         <button onClick={onClose} className="w-full py-3.5 bg-gray-700 hover:bg-gray-600 active:scale-[0.98] text-white font-semibold rounded-2xl transition-all">Cerrar</button>
       </div>
     </div>
