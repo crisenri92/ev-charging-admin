@@ -48,17 +48,49 @@ export async function POST(req: NextRequest) {
     const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4))
     const now = new Date().toISOString()
 
+    // Calcular tiempo transcurrido en minutos
+    const startedAt = session.started_at ? new Date(session.started_at) : new Date(session.created_at)
+    const elapsedMs = new Date(now).getTime() - startedAt.getTime()
+    const elapsedMinutes = Math.max(1, Math.ceil(elapsedMs / 60000))
+
     await supabase.from('charging_sessions').update({
-      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote', meter_start: (meterStart ?? session.meter_start) ?? null, meter_stop: meterStop ?? null,
+      status: 'completed', ended_at: now, energy_kwh: energyKwh, cost, stop_reason: reason || 'Remote',
+      meter_start: (meterStart ?? session.meter_start) ?? null, meter_stop: meterStop ?? null,
     }).eq('id', session.id)
 
     // Restaurar estado del cargador a Available
     await supabase.from('chargers').update({ status: 'Available' }).eq('id', session.charger_id)
 
-    if (cost > 0) {
-      const { data: balanceRow } = await supabase.from('user_balances').select('balance').eq('user_id', session.user_id).single()
-      const currentBalance = balanceRow?.balance || 0
-      const newBalance = Math.max(0, currentBalance - cost)
+    // Obtener saldo actual (dinero y minutos)
+    const { data: balanceRow } = await supabase
+      .from('user_balances')
+      .select('balance, minutes_balance')
+      .eq('user_id', session.user_id)
+      .single()
+
+    const currentBalance = balanceRow?.balance || 0
+    const currentMinutes = balanceRow?.minutes_balance || 0
+    let newBalance = currentBalance
+    let newMinutesBalance: number | null = null
+
+    if (currentMinutes > 0) {
+      // Facturación por minutos: descontar minutos usados
+      const minutesUsed = Math.min(elapsedMinutes, currentMinutes)
+      newMinutesBalance = Math.max(0, currentMinutes - minutesUsed)
+      await supabase.from('user_balances')
+        .update({ minutes_balance: newMinutesBalance })
+        .eq('user_id', session.user_id)
+      await supabase.from('balance_transactions').insert({
+        user_id: session.user_id,
+        amount: -minutesUsed,
+        type: 'minutes_deduction',
+        description: `Sesión de carga - ${session.charger_name || session.charger_id} - ${minutesUsed} min usados`,
+        balance_after: currentBalance,
+        reference_id: session.id,
+      })
+    } else if (cost > 0) {
+      // Facturación por energía (kWh): descontar dinero
+      newBalance = Math.max(0, currentBalance - cost)
       await supabase.from('user_balances').update({ balance: newBalance }).eq('user_id', session.user_id)
       await supabase.from('balance_transactions').insert({
         user_id: session.user_id, amount: -cost,
@@ -67,7 +99,7 @@ export async function POST(req: NextRequest) {
         balance_after: newBalance, reference_id: session.id,
       })
 
-      // Send push notification
+      // Notificación push
       try {
         await fetch(`${APP_URL}/api/push/send`, {
           method: 'POST',
@@ -82,7 +114,14 @@ export async function POST(req: NextRequest) {
       } catch {} // non-blocking
     }
 
-    return NextResponse.json({ ok: true, sessionId: session.id, cost, energyKwh, newBalance })
+    return NextResponse.json({
+      ok: true,
+      sessionId: session.id,
+      cost: currentMinutes > 0 ? 0 : cost,
+      energyKwh,
+      newBalance,
+      minutesBalance: newMinutesBalance,
+    })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
