@@ -37,6 +37,32 @@ function ocppCall(ws, action, payload) {
   });
 }
 
+// --- Pricing helper ---
+
+async function getCurrentPricePerKwh() {
+  try {
+    // Ecuador is UTC-5
+    const ecuadorHour = (new Date().getUTCHours() - 5 + 24) % 24;
+    const { data: rules } = await supabase
+      .from('pricing_rules')
+      .select('price_per_kwh, start_hour, end_hour')
+      .eq('is_active', true)
+      .order('priority', { ascending: true });
+    if (rules && rules.length > 0) {
+      for (const rule of rules) {
+        if (ecuadorHour >= rule.start_hour && ecuadorHour < rule.end_hour) {
+          return rule.price_per_kwh;
+        }
+      }
+      // If no rule matched, return first rule's price as default
+      return rules[0].price_per_kwh;
+    }
+  } catch (e) {
+    console.error('[OCPP] Pricing error:', e.message);
+  }
+  return 0.15; // default fallback
+}
+
 // --- OCPP message handlers ---
 
 async function handleBootNotification(chargerId, payload) {
@@ -75,13 +101,58 @@ async function handleStartTransaction(chargerId, payload) {
 
 async function handleStopTransaction(chargerId, payload) {
   console.log('[' + chargerId + '] StopTransaction txId=' + payload.transactionId + ' meterStop=' + payload.meterStop);
-  const energyWh = (payload.meterStop || 0) - (payload.meterStart || 0);
+
+  // Fetch active session before updating — needed for billing
+  const { data: session } = await supabase
+    .from('charging_sessions')
+    .select('id, user_id, meter_start')
+    .eq('charger_id', chargerId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  const meterStart = (session && session.meter_start != null)
+    ? session.meter_start
+    : (payload.meterStart || 0);
+  const energyWh = (payload.meterStop || 0) - meterStart;
   const energyKwh = Math.max(0, energyWh / 1000);
+
+  // Mark session completed
   await supabase.from('charging_sessions')
     .update({ status: 'completed', ended_at: new Date().toISOString(), energy_kwh: energyKwh })
     .eq('charger_id', chargerId).eq('status', 'active');
   await supabase.from('chargers').update({ status: 'Available' }).eq('id', chargerId);
   if (chargers[chargerId]) chargers[chargerId].currentTransactionId = null;
+
+  // Auto-billing: deduct cost from user balance
+  if (session && session.user_id && energyKwh > 0) {
+    try {
+      const pricePerKwh = await getCurrentPricePerKwh();
+      const cost = parseFloat((energyKwh * pricePerKwh).toFixed(4));
+      if (cost > 0) {
+        const { data: bal } = await supabase
+          .from('user_balances')
+          .select('balance')
+          .eq('user_id', session.user_id)
+          .maybeSingle();
+        const currentBalance = (bal && bal.balance != null) ? parseFloat(bal.balance) : 0;
+        const newBalance = parseFloat(Math.max(0, currentBalance - cost).toFixed(4));
+        await supabase.from('user_balances')
+          .update({ balance: newBalance })
+          .eq('user_id', session.user_id);
+        await supabase.from('balance_transactions').insert({
+          user_id: session.user_id,
+          amount: -cost,
+          type: 'charge',
+          description: 'Carga eléctrica: ' + energyKwh.toFixed(3) + ' kWh @ $' + pricePerKwh + '/kWh',
+          session_id: session.id,
+        });
+        console.log('[' + chargerId + '] Billed user ' + session.user_id + ': $' + cost + ' (' + energyKwh.toFixed(3) + ' kWh @ $' + pricePerKwh + '/kWh)');
+      }
+    } catch (billingErr) {
+      console.error('[' + chargerId + '] Billing error:', billingErr.message);
+    }
+  }
+
   return { idTagInfo: { status: 'Accepted' } };
 }
 
