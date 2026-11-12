@@ -76,7 +76,7 @@ function WalletContent() {
 
   useEffect(() => {
     if (searchParams.get('recharge') === 'success') {
-      setToast({ msg: 'â Recarga exitosa. Tu saldo fue actualizado.', type: 'success' })
+      setToast({ msg: '✅ Recarga exitosa. Tu saldo fue actualizado.', type: 'success' })
     }
   }, [searchParams])
 
@@ -119,15 +119,15 @@ function WalletContent() {
       if (cancelledRef.current) return
       if (pollData.status === 'approved') {
         setPendingPayment(null)
-        setToast({ msg: 'â Recarga confirmada. Tu saldo fue actualizado.', type: 'success' })
+        setToast({ msg: '✅ Recarga confirmada. Tu saldo fue actualizado.', type: 'success' })
         loadData()
         return
       }
       if (pollData.status === 'failed' || pollData.status === 'expired') {
-        setToast({ msg: 'El pago expirÃ³ o fallÃ³. Intenta de nuevo.', type: 'error' })
+        setToast({ msg: 'El pago expiró o falló. Intenta de nuevo.', type: 'error' })
         return
       }
-      setToast({ msg: 'AÃºn no se confirma el pago. Puedes seguir esperando.', type: 'info' })
+      setToast({ msg: 'Aún no se confirma el pago. Puedes seguir esperando.', type: 'info' })
     } catch {
       if (!cancelledRef.current) {
         setToast({ msg: 'No se pudo consultar el pago. Intenta de nuevo.', type: 'error' })
@@ -158,7 +158,7 @@ function WalletContent() {
       setPendingPayment(payment)
       pollPayment(payment.paymentId, token)
     } catch {
-      setToast({ msg: 'Error de conexiÃ³n. Intenta de nuevo.', type: 'error' })
+      setToast({ msg: 'Error de conexión. Intenta de nuevo.', type: 'error' })
     } finally {
       setRecharging(false)
     }
@@ -183,10 +183,10 @@ function WalletContent() {
   const validateTransfer = (): boolean => {
     const errs: Record<string, string> = {}
     const num = parseFloat(transferData.amount)
-    if (!transferData.amount || isNaN(num)) errs.amount = 'Ingresa un monto vÃ¡lido'
+    if (!transferData.amount || isNaN(num)) errs.amount = 'Ingresa un monto válido'
     else if (num <= 0) errs.amount = 'El monto debe ser mayor a $0'
-    else if (num > 10000) errs.amount = 'El monto mÃ¡ximo es $10,000'
-    if (!transferData.reference.trim()) errs.reference = 'Ingresa el nÃºmero de comprobante'
+    else if (num > 10000) errs.amount = 'El monto máximo es $10,000'
+    if (!transferData.reference.trim()) errs.reference = 'Ingresa el número de comprobante'
     if (!transferFile) errs.file = 'Adjunta la captura de la transferencia'
     setTransferErrors(errs)
     return Object.keys(errs).length === 0
@@ -230,10 +230,10 @@ function WalletContent() {
       if (!res.ok) throw new Error(data.error || 'Error al enviar la solicitud')
       const status = data.transfer_request?.status
       if (status === 'approved') {
-        setToast({ msg: 'Transferencia aprobada automÃ¡ticamente. Â¡Saldo acreditado!', type: 'success' })
+        setToast({ msg: 'Transferencia aprobada automáticamente. Â¡Saldo acreditado!', type: 'success' })
         loadData()
       } else if (status === 'rejected') {
-        setToast({ msg: 'El comprobante no fue vÃ¡lido. Revisa la imagen y vuelve a intentar.', type: 'error' })
+        setToast({ msg: 'El comprobante no fue válido. Revisa la imagen y vuelve a intentar.', type: 'error' })
         return
       }
       setTransferStep('success')
@@ -255,11 +255,11 @@ function WalletContent() {
   }
 
   function txIcon(type: string, amount: number) {
-    if (type === 'voucher') return 'ð'
-    if (type === 'transfer') return 'ð¦'
-    if (type === 'balance_recharge' || type === 'topup' || type === 'recharge' || amount > 0) return 'ð³'
-    if (type === 'charge' || type === 'charge_deduction') return 'â¡'
-    return 'ð¸'
+    if (type === 'voucher') return '🎁'
+    if (type === 'transfer') return '🏦'
+    if (type === 'balance_recharge' || type === 'topup' || type === 'recharge' || amount > 0) return '💸'
+    if (type === 'charge' || type === 'charge_deduction') return '⚡'
+    return '💸'
   }
 
   function formatDate(iso: string) {
@@ -287,11 +287,11 @@ function WalletContent() {
         body: JSON.stringify({ code: voucherCode }),
       })
       const d = await res.json()
-      if (!res.ok) { setToast({ msg: d.error || 'CÃ³digo invÃ¡lido', type: 'error' }); return }
-      setToast({ msg: `+$${d.amount.toFixed(2)} agregados a tu wallet ð`, type: 'success' })
+      if (!res.ok) { setToast({ msg: d.error || 'Código inválido', type: 'error' }); return }
+      setToast({ msg: `+$${d.amount.toFixed(2)} agregados a tu wallet 💚`, type: 'success' })
       setVoucherCode('')
       loadData()
-    } catch { setToast({ msg: 'Error de conexiÃ³n', type: 'error' }) }
+    } catch { setToast({ msg: 'Error de conexión', type: 'error' }) }
     finally { setRedeeming(false) }
   }
 
@@ -305,7 +305,7 @@ function WalletContent() {
           <div className="bg-gray-900 w-full max-w-md rounded-2xl p-5 border border-gray-700">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-white font-bold">Paga ${pendingPayment.amount.toFixed(2)}</h2>
-              <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">â</button>
+              <button onClick={closePaymentModal} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
             {pendingPayment.qrCode && (
               <div className="bg-white rounded-xl p-3 flex justify-center mb-4">
@@ -320,12 +320,12 @@ function WalletContent() {
             )}
             {pendingPayment.numericCode && (
               <p className="text-center text-gray-300 text-sm mb-3">
-                CÃ³digo: <span className="font-mono text-white text-lg">{pendingPayment.numericCode}</span>
+                Código: <span className="font-mono text-white text-lg">{pendingPayment.numericCode}</span>
               </p>
             )}
             <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mb-4">
               {waitingPayment && <div className="h-4 w-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />}
-              {waitingPayment ? 'Esperando confirmaciÃ³n de pagoâ¦' : 'Si ya pagaste, vuelve a consultar'}
+              {waitingPayment ? 'Esperando confirmación de pago…' : 'Si ya pagaste, vuelve a consultar'}
             </div>
             <div className="flex gap-2">
               <button onClick={closePaymentModal} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-300">Cancelar</button>
@@ -337,7 +337,7 @@ function WalletContent() {
                   pollPayment(pendingPayment.paymentId, token)
                 }}
                 className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-40">
-                {waitingPayment ? 'Consultandoâ¦' : 'Ya paguÃ¡'}
+                {waitingPayment ? 'Consultando…' : 'Ya paguá'}
               </button>
             </div>
           </div>
@@ -362,15 +362,15 @@ function WalletContent() {
               <div className="text-center">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Tiempo de carga</p>
                 <p className="text-green-400 font-bold text-lg">
-                  {balance > 0 ? formatChargingTime(availableMinutes) : 'â'}
+                  {balance > 0 ? formatChargingTime(availableMinutes) : '—'}
                 </p>
                 <p className="text-gray-600 text-xs">a {CHARGER_POWER_KW} kW</p>
               </div>
               <div className="w-px h-10 bg-gray-700" />
               <div className="text-center">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">EnergÃ­a</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Energía</p>
                 <p className="text-blue-400 font-bold text-lg">
-                  {balance > 0 ? availableKwh.toFixed(1) + ' kWh' : 'â'}
+                  {balance > 0 ? availableKwh.toFixed(1) + ' kWh' : '—'}
                 </p>
                 <p className="text-gray-600 text-xs">${pricePerKwh.toFixed(2)}/kWh</p>
               </div>
@@ -381,15 +381,15 @@ function WalletContent() {
 
       {/* Payment method selector */}
       <div className="px-4 mb-5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">MÃ©todo de recarga</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Método de recarga</p>
         <div className="flex gap-2 bg-gray-800/50 p-1 rounded-xl border border-gray-700">
           <button onClick={() => { setPaymentMethod('deuna'); resetTransfer() }}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'deuna' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            <span>ð³</span> Deuna
+            <span>💸</span> Deuna
           </button>
           <button onClick={() => { setPaymentMethod('transfer'); resetTransfer() }}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'transfer' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            <span>ð¦</span> Transferencia
+            <span>🏦</span> Transferencia
           </button>
         </div>
       </div>
@@ -445,7 +445,7 @@ function WalletContent() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Datos para la transferencia</p>
               <div className="bg-gray-800/50 rounded-2xl border border-gray-700 overflow-hidden mb-4">
                 <div className="bg-blue-600/20 border-b border-gray-700 px-4 py-3 flex items-center gap-2">
-                  <span className="text-blue-400 text-lg">ð¦</span>
+                  <span className="text-blue-400 text-lg">🏦</span>
                   <span className="text-white font-semibold text-sm">{BANK_INFO.bank}</span>
                   <span className="ml-auto text-xs text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">{BANK_INFO.type}</span>
                 </div>
@@ -453,7 +453,7 @@ function WalletContent() {
                   {[
                     { label: 'Titular', value: BANK_INFO.name },
                     { label: 'NÂº de cuenta', value: BANK_INFO.account },
-                    { label: 'CÃ©dula', value: BANK_INFO.id },
+                    { label: 'Cédula', value: BANK_INFO.id },
                     { label: 'Email', value: BANK_INFO.email },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between px-4 py-3">
@@ -475,11 +475,11 @@ function WalletContent() {
                 </div>
               </div>
               <p className="text-gray-500 text-xs text-center mb-4">
-                Realiza la transferencia y luego sube el comprobante para acreditar tu saldo automÃ¡ticamente
+                Realiza la transferencia y luego sube el comprobante para acreditar tu saldo automáticamente
               </p>
               <button onClick={() => setTransferStep('form')}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all text-sm">
-                Ya transferÃ­, subir comprobante
+                Ya transferí, subir comprobante
               </button>
             </div>
           )}
@@ -566,7 +566,7 @@ function WalletContent() {
                 </div>
               )}
               <p className="text-gray-600 text-xs text-center mt-3 mb-3">
-                La imagen serÃ¡ verificada automÃ¡ticamente por IA. El saldo se acreditarÃ¡ en segundos si es vÃ¡lida.
+                La imagen será verificada automáticamente por IA. El saldo se acreditará en segundos si es válida.
               </p>
               <button onClick={handleTransferSubmit} disabled={transferLoading}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 active:scale-[0.98] text-white font-semibold rounded-xl transition-all text-sm flex items-center justify-center gap-2">
@@ -578,10 +578,10 @@ function WalletContent() {
 
           {transferStep === 'success' && (
             <div className="text-center py-8">
-              <div className="text-5xl mb-4">â</div>
+              <div className="text-5xl mb-4">✅</div>
               <p className="text-white font-bold text-lg mb-2">Â¡Comprobante enviado!</p>
               <p className="text-gray-400 text-sm mb-6">
-                Si fue aprobado automÃ¡ticamente, tu saldo ya fue actualizado. Si requiere revisiÃ³n manual, lo procesaremos pronto.
+                Si fue aprobado automáticamente, tu saldo ya fue actualizado. Si requiere revisión manual, lo procesaremos pronto.
               </p>
               <button onClick={() => { resetTransfer(); loadData() }}
                 className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium text-sm">
@@ -594,7 +594,7 @@ function WalletContent() {
 
       {/* Voucher */}
       <div className="px-4 mb-6">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear cÃ³digo</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Canjear código</p>
         <div className="flex gap-2">
           <input type="text" placeholder="Ej: BIENVENIDA"
             value={voucherCode}
@@ -617,8 +617,8 @@ function WalletContent() {
           : transactions.length === 0
           ? (
             <div className="bg-gray-900 rounded-xl p-8 text-center">
-              <p className="text-3xl mb-2">ð³</p>
-              <p className="text-gray-500 text-sm">Sin movimientos aÃºn</p>
+              <p className="text-3xl mb-2">💸</p>
+              <p className="text-gray-500 text-sm">Sin movimientos aún</p>
             </div>
           )
           : (
@@ -627,7 +627,7 @@ function WalletContent() {
                 <div key={t.id} className="flex items-center gap-3 px-4 py-3">
                   <span className="text-xl w-8 text-center flex-shrink-0">{txIcon(t.type, t.amount)}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{t.description || (t.amount > 0 ? 'Recarga' : 'Carga elÃ©ctrica')}</p>
+                    <p className="text-white text-sm truncate">{t.description || (t.amount > 0 ? 'Recarga' : 'Carga eléctrica')}</p>
                     <p className="text-gray-500 text-xs">{formatDate(t.created_at)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
