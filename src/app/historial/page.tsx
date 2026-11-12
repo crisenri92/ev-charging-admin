@@ -23,12 +23,12 @@ interface BalanceSummary {
 }
 
 function formatDate(iso: string | null) {
-  if (!iso) return 'â';
+  if (!iso) return '—';
   return new Date(iso).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function formatDuration(start: string | null, stop: string | null) {
-  if (!start || !stop) return 'â';
+  if (!start || !stop) return '—';
   const mins = Math.round((new Date(stop).getTime() - new Date(start).getTime()) / 60000);
   if (mins < 60) return `${mins} min`;
   return `${Math.floor(mins / 60)}h ${mins % 60}min`;
@@ -106,7 +106,7 @@ export default function HistorialPage() {
       {/* Resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Saldo actual', value: balance ? `$${balance.balance.toFixed(2)}` : 'â' },
+          { label: 'Saldo actual', value: balance ? `$${balance.balance.toFixed(2)}` : '—' },
           { label: 'Sesiones completadas', value: completed.toString() },
           { label: 'Energía total (kWh)', value: totalEnergy.toFixed(2) },
           { label: 'Costo total', value: `$${totalCost.toFixed(2)}` },
@@ -141,14 +141,14 @@ export default function HistorialPage() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(s.start_time ?? s.created_at)}</td>
                     <td className="px-4 py-3 font-mono text-gray-800">{s.charger_id}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDuration(s.start_time, s.stop_time)}</td>
-                    <td className="px-4 py-3 text-gray-800">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : 'â'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{s.cost != null ? `$${s.cost.toFixed(2)}` : 'â'}</td>
+                    <td className="px-4 py-3 text-gray-800">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(s.status)}`}>
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{s.stop_reason ?? 'â'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{s.stop_reason ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
