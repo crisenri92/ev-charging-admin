@@ -69,13 +69,13 @@ async function handleBootNotification(chargerId, payload) {
   console.log('[' + chargerId + '] BootNotification:', payload.chargePointModel, payload.firmwareVersion);
   const updateData = {};
   if (payload.chargePointVendor) updateData.vendor = payload.chargePointVendor;
-  if (payload.chargePointModel) updateData.model = payload.chargePointModel;
+  if (payload.chargePointModel) updateData.model = payload.chargePointModel
   if (payload.firmwareVersion) updateData.firmware = payload.firmwareVersion;
   if (payload.chargePointSerialNumber) updateData.serial_number = payload.chargePointSerialNumber;
   if (Object.keys(updateData).length) {
     await supabase.from('chargers').update(updateData).eq('id', chargerId);
   }
-  return { currentTime: new Date().toISOString(), interval: 300, status: 'Accepted' };
+  return { currentTime: new Date().toISOString(), interval: 25, status: 'Accepted' };
 }
 
 async function handleStatusNotification(chargerId, payload) {
