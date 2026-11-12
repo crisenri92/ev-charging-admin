@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       } catch {} // non-blocking
     }
 
-    return NextResponse.json({ ok: true, sessionId: session.id, cost, energyKwh })
+    return NextResponse.json({ ok: true, sessionId: session.id, cost, energyKwh, newBalance })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
