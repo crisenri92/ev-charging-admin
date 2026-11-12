@@ -1,7 +1,7 @@
 /**
  * POST /api/charging/start
  * Inicia una sesión de carga.
- * Si hay autorización Deuna la usa; si no, valida saldo de wallet.
+ * Acepta Bearer token (móvil) o cookies de sesión (web).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,11 +9,24 @@ import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 
+/** Verifica auth por Bearer token (móvil) o cookies (web). */
+async function getAuthUser(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7)
+    const admin = supabaseAdmin()
+    const { data: { user }, error } = await admin.auth.getUser(token)
+    if (error || !user) throw apiError('No autorizado', 401)
+    return user
+  }
+  const { user } = await requireAuth()
+  return user
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { chargerId } = await req.json()
-    const { user } = await requireAuth()
+    const user = await getAuthUser(req)
     const supabase = supabaseAdmin()
 
     const repo = getPaymentRepository()
