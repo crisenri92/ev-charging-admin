@@ -25,7 +25,7 @@ transaction_id: string | null
 }
 
 function duration(start: string | null, end: string | null): string {
-if (!start) return '—'
+if (!start) return 'â'
 const s = new Date(start)
 const e = end ? new Date(end) : new Date()
 const mins = Math.floor((e.getTime() - s.getTime()) / 60000)
@@ -34,7 +34,7 @@ return `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
 function fmtDate(d: string | null): string {
-if (!d) return '—'
+if (!d) return 'â'
 return new Date(d).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
 }
 
@@ -63,13 +63,14 @@ return (
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 shrink-0">
 <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
 </svg>
-<span className="font-medium">¡Pago exitoso! Tu sesión de carga ha sido registrada.</span>
+<span className="font-medium">Â¡Pago exitoso! Tu sesiÃ³n de carga ha sido registrada.</span>
 </div>
 )
 }
 
 export default function SessionsPage() {
 const [sessions, setSessions] = useState<Session[]>([])
+const [userEmails, setUserEmails] = useState<Record<string, string>>({})
 const [loading, setLoading] = useState(true)
 const [error, setError] = useState('')
 const [forceStoppingId, setForceStoppingId] = useState<string | null>(null)
@@ -83,12 +84,28 @@ const limitParam = parseInt(params.get('limit') || '100', 10)
 const effectiveLimit = isNaN(limitParam) ? 100 : Math.min(Math.max(1, limitParam), 500)
 setActiveLimit(effectiveLimit)
 
-const { data, error } = await supabase
+const { data: { session: authSession } } = await supabase.auth.getSession()
+
+const sessionsPromise = supabase
 .from('charging_sessions')
 .select('*')
 .order('started_at', { ascending: false })
 .limit(effectiveLimit)
-if (error) setError('Tabla charging_sessions no encontrada. Créala en Supabase.')
+
+const usersPromise = fetch('/api/admin/users', {
+headers: { Authorization: `Bearer ${authSession?.access_token}` }
+}).then(async res => {
+if (res.ok) {
+const json = await res.json()
+const map: Record<string, string> = {}
+for (const u of (json.users ?? [])) map[u.id] = u.email
+setUserEmails(map)
+}
+}).catch(() => {})
+
+const [{ data, error }] = await Promise.all([sessionsPromise, usersPromise])
+
+if (error) setError('Tabla charging_sessions no encontrada. CrÃ©ala en Supabase.')
 else setSessions(data ?? [])
 setLoading(false)
 }
@@ -96,7 +113,7 @@ load()
 }, [])
 
 async function handleForceStop(sessionId: string) {
-if (!confirm('¿Cerrar forzosamente esta sesión y restaurar el saldo?')) return
+if (!confirm('Â¿Cerrar forzosamente esta sesiÃ³n y restaurar el saldo?')) return
 setForceStoppingId(sessionId)
 setForceStopMsg('')
 try {
@@ -109,7 +126,7 @@ const json = await res.json()
 if (!res.ok) {
 setForceStopMsg(`Error: ${json.error}`)
 } else {
-setForceStopMsg('Sesión cerrada y saldo restaurado.')
+setForceStopMsg('SesiÃ³n cerrada y saldo restaurado.')
 setSessions(prev =>
 prev.map(s =>
 s.id === sessionId ? { ...s, ended_at: new Date().toISOString() } : s
@@ -132,13 +149,13 @@ return (
 <h1 className="text-2xl font-bold text-white">Sesiones de Carga</h1>
 <p className="mt-1 text-sm text-gray-400">
 {!loading && sessions.length > 0
-? `Mostrando ${sessions.length} sesión${sessions.length !== 1 ? 'es' : ''} (límite: ${activeLimit})`
+? `Mostrando ${sessions.length} sesiÃ³n${sessions.length !== 1 ? 'es' : ''} (lÃ­mite: ${activeLimit})`
 : 'Historial de sesiones registradas'}
 </p>
 </div>
 <div className="flex gap-2">
-<button onClick={() => downloadCSV('/api/admin/export/sessions', 'sesiones.csv')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">⬇ Sesiones CSV</button>
-<button onClick={() => downloadCSV('/api/admin/export/payments', 'pagos.csv')} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">⬇ Pagos CSV</button>
+<button onClick={() => downloadCSV('/api/admin/export/sesiones.csv')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium">â¬ Sesiones CSV</button>
+<button onClick={() => downloadCSV('/api/admin/export/payments', 'pagos.csv')} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium">â¬ Pagos CSV</button>
 </div>
 </div>
 </div>
@@ -188,7 +205,7 @@ Cargando sesiones...
 
 {!loading && !error && sessions.length === 0 && (
 <div className="rounded-xl border border-gray-700/50 bg-gray-900/50 p-8 text-center text-gray-500">
-No hay sesiones registradas aún.
+No hay sesiones registradas aÃºn.
 </div>
 )}
 
@@ -198,7 +215,7 @@ No hay sesiones registradas aún.
 <table className="w-full text-sm">
 <thead>
 <tr className="border-b border-gray-700/50">
-{['Cargador', 'Inicio', 'Duración', 'kWh', 'Monto', 'Estado', ''].map(h => (
+{['Cargador', 'Usuario', 'Inicio', 'DuraciÃ³n', 'kWh', 'Monto', 'Estado', ''].map(h => (
 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
 ))}
 </tr>
@@ -206,11 +223,16 @@ No hay sesiones registradas aún.
 <tbody className="divide-y divide-gray-800/50">
 {sessions.map(s => (
 <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
-<td className="px-4 py-3 font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</td>
+<td className="px-4 py-3 font-mono text-xs text-blue-300">{s.charger_id ?? 'â'}</td>
+<td className="px-4 py-3 text-xs text-gray-300 max-w-[160px]">
+<span className="block truncate" title={userEmails[s.user_id ?? ''] ?? s.user_id ?? 'â'}>
+{s.user_id ? (userEmails[s.user_id] ?? s.user_id.slice(0, 8) + 'â¦') : 'â'}
+</span>
+</td>
 <td className="px-4 py-3 text-gray-300">{fmtDate(s.started_at)}</td>
 <td className="px-4 py-3 text-gray-300">{duration(s.started_at, s.ended_at)}</td>
-<td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : '—'}</td>
-<td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</td>
+<td className="px-4 py-3 text-gray-300">{s.energy_kwh != null ? `${s.energy_kwh.toFixed(2)} kWh` : 'â'}</td>
+<td className="px-4 py-3 text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : 'â'}</td>
 <td className="px-4 py-3"><StatusPill ended={s.ended_at} /></td>
 <td className="px-4 py-3">
 {!s.ended_at && (
@@ -219,7 +241,7 @@ onClick={() => handleForceStop(s.id)}
 disabled={forceStoppingId === s.id}
 className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 >
-{forceStoppingId === s.id ? 'Deteniendo…' : 'Force Stop'}
+{forceStoppingId === s.id ? 'Deteniendoâ¦' : 'Force Stop'}
 </button>
 )}
 </td>
@@ -236,14 +258,20 @@ className="rounded-lg bg-red-600/20 border border-red-500/40 px-2 py-1 text-xs t
 {sessions.map(s => (
 <div key={s.id} className="rounded-xl border border-gray-700/50 bg-gray-900/60 p-4">
 <div className="flex items-center justify-between mb-3">
-<span className="font-mono text-xs text-blue-300">{s.charger_id ?? '—'}</span>
+<span className="font-mono text-xs text-blue-300">{s.charger_id ?? 'â'}</span>
 <StatusPill ended={s.ended_at} />
+</div>
+<div className="mb-2">
+<p className="text-xs text-gray-500">Usuario</p>
+<p className="text-xs text-gray-300 truncate" title={userEmails[s.user_id ?? ''] ?? s.user_id ?? 'â'}>
+{s.user_id ? (userEmails[s.user_id] ?? s.user_id.slice(0, 8) + 'â¦') : 'â'}
+</p>
 </div>
 <div className="grid grid-cols-2 gap-2 text-xs">
 <div><p className="text-gray-500">Inicio</p><p className="text-gray-300">{fmtDate(s.started_at)}</p></div>
-<div><p className="text-gray-500">Duración</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
-<div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : '—'}</p></div>
-<div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : '—'}</p></div>
+<div><p className="text-gray-500">DuraciÃ³n</p><p className="text-gray-300">{duration(s.started_at, s.ended_at)}</p></div>
+<div><p className="text-gray-500">kWh</p><p className="text-gray-300">{s.energy_kwh != null ? s.energy_kwh.toFixed(2) : 'â'}</p></div>
+<div><p className="text-gray-500">Monto</p><p className="text-emerald-300">{s.cost != null ? `$${s.cost.toFixed(2)}` : 'â'}</p></div>
 </div>
 {!s.ended_at && (
 <div className="mt-3">
@@ -252,7 +280,7 @@ onClick={() => handleForceStop(s.id)}
 disabled={forceStoppingId === s.id}
 className="w-full rounded-lg bg-red-600/20 border border-red-500/40 py-2 text-xs text-red-300 hover:bg-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 >
-{forceStoppingId === s.id ? 'Deteniendo…' : '⏹ Force Stop'}
+{forceStoppingId === s.id ? 'Deteniendoâ¦' : 'â¹ Force Stop'}
 </button>
 </div>
 )}
