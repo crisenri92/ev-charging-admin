@@ -7,11 +7,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function parseLocation(input: string): { lat: number; lng: number } | null {
-  const s = input.trim()
+// Accepts: full Google Maps URL, short goo.gl URL, or plain "lat,lng"
+async function parseLocation(input: string): Promise<{ lat: number; lng: number } | null> {
+  let s = input.trim()
+  // Expand shortened Google Maps URLs (maps.app.goo.gl, goo.gl/maps, etc.)
+  if (/goo\.gl|maps\.app/i.test(s)) {
+    try {
+      const res = await fetch(s, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) })
+      s = res.url
+    } catch {
+      // keep original if expansion fails
+    }
+  }
   let m = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
   if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) }
   m = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) }
+  m = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/)
   if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) }
   m = s.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/)
   if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) }
@@ -38,9 +50,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!locationInput) {
     return NextResponse.json({ error: 'Campo location requerido' }, { status: 400 })
   }
-  const coords = parseLocation(locationInput)
+  const coords = await parseLocation(locationInput)
   if (!coords) {
-    return NextResponse.json({ error: 'Formato inv\u00e1lido. Usa URL de Google Maps o coordenadas: -0.2295, -78.5243' }, { status: 400 })
+    return NextResponse.json({ error: 'Formato inválido. Usa URL de Google Maps o coordenadas: -0.2295, -78.5243' }, { status: 400 })
   }
   const { error } = await supabase
     .from('chargers')
@@ -58,9 +70,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const { location_input } = await request.json()
-  const coords = parseLocation(location_input)
+  const coords = await parseLocation(location_input)
   if (!coords) {
-    return NextResponse.json({ error: 'Formato inv\u00e1lido. Usa URL de Google Maps o coordenadas: -0.2295, -78.5243' }, { status: 400 })
+    return NextResponse.json({ error: 'Formato inválido. Usa URL de Google Maps o coordenadas: -0.2295, -78.5243' }, { status: 400 })
   }
   const { error } = await supabase
     .from('chargers')
