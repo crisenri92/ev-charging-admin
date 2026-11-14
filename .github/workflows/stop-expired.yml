@@ -1,0 +1,17 @@
+name: Stop Expired Sessions
+
+on:
+  schedule:
+    # Runs every 5 minutes (GitHub Actions minimum)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  stop-expired:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call stop-expired endpoint
+        run: |
+          curl -sf "https://recargat.app/api/admin/cron/stop-expired" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 30 || true
