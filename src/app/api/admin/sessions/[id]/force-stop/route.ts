@@ -26,6 +26,68 @@ async function requireAdminUser(req: NextRequest) {
   return profile?.role === 'admin' ? user : null
 }
 
+/** EnvÃ­a RemoteStopTransaction al CSMS. Best-effort, no lanza si falla. */
+async function sendRemoteStop(chargerId: string): Promise<void> {
+  const ocppServerUrl = process.env.OCPP_SERVER_URL
+  if (!ocppServerUrl) return
+  try {
+    let csmsChargerId = chargerId
+    let transactionId: number | null = null
+
+    // Step 1: obtener transactionId desde el estado en memoria del CSMS
+    const chargerRes = await fetch(`${ocppServerUrl}/api/chargers`, {
+      headers: { Authorization: `Bearer ${process.env.OCPP_API_SECRET || 'ev-admin-2024'}` },
+    })
+    if (chargerRes.ok) {
+      const chargers: Array<{ id: string; activeSession: { transactionId: number } | null }> =
+        await chargerRes.json()
+      const csmsCharger = chargers.find(
+        (c) =>
+          c.id === chargerId ||
+          c.id.replace(/_/g, '') === chargerId.replace(/_/g, '')
+      )
+      if (csmsCharger) {
+        csmsChargerId = csmsCharger.id
+        transactionId = csmsCharger.activeSession?.transactionId ?? null
+      }
+    }
+
+    // Step 2: fallback â buscar transactionId en tabla sessions del CSMS
+    if (!transactionId) {
+      const { data: csmsSession } = await supabase
+        .from('sessions')
+        .select('transaction_id, charger_id')
+        .eq('status', 'Active')
+        .or(
+          `charger_id.eq.${chargerId},charger_id.eq.${chargerId.replace(/_/g, '')}`
+        )
+        .order('start_time', { ascending: false })
+        .limit(1)
+        .single()
+      if (csmsSession?.transaction_id) {
+        transactionId = csmsSession.transaction_id
+        csmsChargerId = csmsSession.charger_id
+      }
+    }
+
+    if (!transactionId) return // sin transacciÃ³n activa â nada que detener
+
+    await fetch(
+      `${ocppServerUrl}/api/admin/chargers/${csmsChargerId}/remote-stop`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OCPP_API_SECRET || 'ev-admin-2024'}`,
+        },
+        body: JSON.stringify({ transactionId }),
+      }
+    )
+  } catch {
+    /* best-effort: no bloquear el force-stop si el CSMS falla */
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -36,29 +98,42 @@ export async function POST(
 
   const { id } = params
 
-  // Fetch session to validate state and get balance data
+  // Fetch session to validate state and get balance/charger data
   const { data: session, error: fetchError } = await supabase
     .from('charging_sessions')
-    .select('user_id, amount_charged, ended_at')
+    .select('user_id, charger_id, amount_charged, ended_at')
     .eq('id', id)
     .single()
 
   if (fetchError || !session) {
-    return NextResponse.json({ error: 'Sesión no encontrada' }, { status: 404 })
+    return NextResponse.json({ error: 'SesiÃ³n no encontrada' }, { status: 404 })
   }
 
   if (session.ended_at) {
-    return NextResponse.json({ error: 'La sesión ya está cerrada' }, { status: 409 })
+    return NextResponse.json({ error: 'La sesiÃ³n ya estÃ¡ cerrada' }, { status: 409 })
   }
 
-  // Force-stop: mark session as ended
+  // Force-stop: mark session as ended in DB
   const { error: updateError } = await supabase
     .from('charging_sessions')
-    .update({ ended_at: new Date().toISOString() })
+    .update({ ended_at: new Date().toISOString(), status: 'completed' })
     .eq('id', id)
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
+  // Restore charger status to Available
+  if (session.charger_id) {
+    await supabase
+      .from('chargers')
+      .update({ status: 'Available' })
+      .eq('id', session.charger_id)
+  }
+
+  // Send OCPP RemoteStopTransaction to physical charger (best-effort)
+  if (session.charger_id) {
+    await sendRemoteStop(session.charger_id)
   }
 
   // Restore wallet balance if a charge was deducted
@@ -96,6 +171,6 @@ export async function POST(
 
   return NextResponse.json({
     success: true,
-    message: 'Sesión cerrada forzosamente y saldo restaurado',
+    message: 'SesiÃ³n cerrada forzosamente, saldo restaurado y cargador detenido',
   })
 }
