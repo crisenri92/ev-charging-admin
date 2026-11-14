@@ -1,7 +1,7 @@
 /**
  * POST /api/charging/start
- * Inicia una sesión de carga.
- * Acepta Bearer token (móvil) o cookies de sesión (web).
+ * Inicia una sesiÃ³n de carga.
+ * Acepta Bearer token (mÃ³vil) o cookies de sesiÃ³n (web).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,7 +9,7 @@ import { requireAuth, supabaseAdmin, apiError } from '@/lib/api-helpers'
 import { getCurrentPrice } from '@/lib/pricing'
 import { getPaymentRepository } from '@/lib/database/payment-repository'
 
-/** Verifica auth por Bearer token (móvil) o cookies (web). */
+/** Verifica auth por Bearer token (mÃ³vil) o cookies (web). */
 async function getAuthUser(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader?.startsWith('Bearer ')) {
@@ -23,11 +23,11 @@ async function getAuthUser(req: NextRequest) {
   return user
 }
 
-/** Envía RemoteStartTransaction al servidor OCPP (ev-charging-csms). */
+/** EnvÃ­a RemoteStartTransaction al servidor OCPP (ev-charging-csms). */
 async function sendRemoteStart(chargerId: string, idTag: string): Promise<void> {
   const ocppServerUrl = process.env.OCPP_SERVER_URL
   if (!ocppServerUrl) {
-    console.warn('[Charging Start] OCPP_SERVER_URL not set — skipping RemoteStart')
+    console.warn('[Charging Start] OCPP_SERVER_URL not set â skipping RemoteStart')
     return
   }
   const res = await fetch(`${ocppServerUrl}/api/admin/chargers/${chargerId}/remote-start`, {
@@ -51,6 +51,28 @@ export async function POST(req: NextRequest) {
     const { chargerId } = await req.json()
     const user = await getAuthUser(req)
     const supabase = supabaseAdmin()
+
+    // Validar que el usuario no tenga ya una sesiÃ³n activa
+    const { data: existingSession } = await supabase
+      .from('charging_sessions')
+      .select('id, charger_id, charger_name')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .is('ended_at', null)
+      .maybeSingle()
+
+    if (existingSession) {
+      return NextResponse.json(
+        {
+          error: 'active_session_exists',
+          message: 'Ya tienes una sesiÃ³n de carga activa. DetÃ©n la carga actual antes de iniciar una nueva.',
+          sessionId: existingSession.id,
+          activeChargerId: existingSession.charger_id,
+          activeChargerName: existingSession.charger_name,
+        },
+        { status: 409 }
+      )
+    }
 
     const repo = getPaymentRepository()
     const authorization = await repo.findActiveAuthorization(user.id, chargerId)
@@ -98,20 +120,20 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Enviar RemoteStartTransaction al cargador físico via CSMS
+    // Enviar RemoteStartTransaction al cargador fÃ­sico via CSMS
     try {
       await sendRemoteStart(chargerId, user.id)
     } catch (ocppErr: any) {
       console.error('[Charging Start] OCPP RemoteStart failed:', ocppErr.message, ocppErr.body)
-      // Si el cargador no está conectado al CSMS, revertir y devolver error claro
+      // Si el cargador no estÃ¡ conectado al CSMS, revertir y devolver error claro
       if (ocppErr.message === 'charger_not_connected' || ocppErr.body?.error === 'charger_not_connected') {
         await supabase.from('charging_sessions').delete().eq('id', session.id)
         return NextResponse.json(
-          { error: 'charger_not_connected', message: 'El cargador no está conectado al sistema OCPP. Verifica que esté encendido.' },
+          { error: 'charger_not_connected', message: 'El cargador no estÃ¡ conectado al sistema OCPP. Verifica que estÃ© encendido.' },
           { status: 503 }
         )
       }
-      // Otros errores OCPP: seguir igual (la sesión queda en DB)
+      // Otros errores OCPP: seguir igual (la sesiÃ³n queda en DB)
       console.warn('[Charging Start] Continuing despite OCPP error')
     }
 
