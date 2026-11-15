@@ -18,6 +18,7 @@ interface Charger {
 }
 interface Receipt { chargerName: string; balance: number; sessionId: string; startedAt: string }
 interface Reservation { id: string; charger_id: string; charger_name: string; expires_at: string; duration_minutes: number }
+interface ActiveSession { charger_id: string; charger_name: string; started_at: string; charging_started_at?: string | null; expires_at?: string | null }
 
 const STATUS_COLOR: Record<string, string> = {
   available: 'bg-green-500', charging: 'bg-yellow-500', offline: 'bg-red-500', unavailable: 'bg-gray-600',
@@ -31,7 +32,7 @@ const ERROR_MAP: Record<string, string> = {
   'Charger not found': 'Cargador no encontrado.',
 }
 
-function useCountdown(expiresAt: string | null) {
+function useCountdown(expiresAt: string | null | undefined) {
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     if (!expiresAt) return
@@ -86,6 +87,50 @@ function ReserveModal({ charger, onConfirm, onCancel, loading }: {
   )
 }
 
+function StartChargeModal({ charger, onConfirm, onCancel, loading }: {
+  charger: Charger; onConfirm: (mins: number | null) => void; onCancel: () => void; loading: boolean
+}) {
+  const [duration, setDuration] = useState<number | null>(60)
+  const OPTIONS: { label: string; value: number | null }[] = [
+    { label: '30 min', value: 30 },
+    { label: '1 hora', value: 60 },
+    { label: '2 horas', value: 120 },
+    { label: 'Sin límite', value: null },
+  ]
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
+      <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-sm text-center border border-gray-800">
+        <div className="text-3xl mb-3">⚡</div>
+        <h2 className="text-xl font-bold text-white mb-1">Iniciar carga</h2>
+        <p className="text-gray-400 text-sm mb-5">{charger.name || charger.id}</p>
+        <p className="text-gray-500 text-xs mb-3">¿Por cuánto tiempo?</p>
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          {OPTIONS.map(opt => (
+            <button key={String(opt.value)} onClick={() => setDuration(opt.value)}
+              className={`py-3 rounded-2xl text-sm font-semibold transition-all ${duration === opt.value ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {duration !== null ? (
+          <p className="text-gray-600 text-xs mb-5">
+            Se detendrá automáticamente a las {new Date(Date.now() + duration * 60000).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        ) : (
+          <p className="text-gray-600 text-xs mb-5">La carga continuará hasta que la detengas manualmente</p>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-sm font-medium transition-colors">Cancelar</button>
+          <button onClick={() => onConfirm(duration)} disabled={loading}
+            className="flex-1 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold rounded-2xl text-sm transition-all active:scale-[0.98]">
+            {loading ? <span className="flex items-center justify-center gap-1"><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span> : 'Iniciar carga'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ReceiptModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-50 p-4 pb-8">
@@ -127,7 +172,7 @@ function QrConfirmModal({ chargerId, charger, onConfirm, onCancel, loading }: {
           <button onClick={onCancel} className="flex-1 py-3 bg-gray-800 text-white rounded-2xl text-sm font-medium">Cancelar</button>
           <button onClick={onConfirm} disabled={loading}
             className="flex-1 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-semibold rounded-2xl text-sm transition-all">
-            {loading ? <svg className="animate-spin h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : 'Iniciar carga'}
+            {loading ? <svg className="animate-spin h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : 'Siguiente'}
           </button>
         </div>
       </div>
@@ -200,17 +245,26 @@ function ChargerCard({ charger, onStart, onReserve, onCancelReservation, loading
 }
 
 
-function ActiveSessionBanner({ session }: { session: { charger_id: string; charger_name: string; started_at: string } }) {
+function ActiveSessionBanner({ session }: { session: ActiveSession }) {
+  const timerStart = session.charging_started_at || session.started_at
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
-    const tick = () => setElapsed(Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000))
+    const tick = () => setElapsed(Math.floor((Date.now() - new Date(timerStart).getTime()) / 1000))
     tick()
     const iv = setInterval(tick, 1000)
     return () => clearInterval(iv)
-  }, [session.started_at])
+  }, [timerStart])
+
+  const remaining = useCountdown(session.expires_at)
+
   const h = Math.floor(elapsed / 3600)
   const m = Math.floor((elapsed % 3600) / 60)
   const s = elapsed % 60
+
+  const rh = Math.floor(remaining / 3600)
+  const rm = Math.floor((remaining % 3600) / 60)
+  const rs = remaining % 60
+
   return (
     <div className="mx-4 mb-3 bg-green-900/20 border border-green-700/40 rounded-2xl p-4">
       <div className="flex items-center justify-between">
@@ -227,7 +281,13 @@ function ActiveSessionBanner({ session }: { session: { charger_id: string; charg
           <p className="text-white font-mono text-xl font-bold">
             {h > 0 ? `${h}:` : ''}{String(m).padStart(2,'0')}:{String(s).padStart(2,'0')}
           </p>
-          <p className="text-gray-500 text-xs">activo</p>
+          {session.expires_at && remaining > 0 ? (
+            <p className={`text-xs font-mono ${remaining < 300 ? 'text-red-400' : 'text-gray-400'}`}>
+              -{rh > 0 ? `${rh}:` : ''}{String(rm).padStart(2,'0')}:{String(rs).padStart(2,'0')} restante
+            </p>
+          ) : (
+            <p className="text-gray-500 text-xs">activo</p>
+          )}
         </div>
       </div>
     </div>
@@ -261,28 +321,17 @@ function MobileContent() {
   const [qrConfirm, setQrConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'error'|'success'|'info' } | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
-  const [minutesBalance, setMinutesBalance] = useState<number | null>(null)
   const [user, setUser] = useState<any>(null)
   const [mapView, setMapView] = useState(true)
   const [currentPricing, setCurrentPricing] = useState<{ price: number; ruleName: string } | null>(null)
   const [myReservations, setMyReservations] = useState<Reservation[]>([])
   const [chargerReservations, setChargerReservations] = useState<Record<string, boolean>>({})
   const [reserveModal, setReserveModal] = useState<Charger | null>(null)
+  const [startChargeModal, setStartChargeModal] = useState<Charger | null>(null)
   const [reservingCharger, setReservingCharger] = useState<string | null>(null)
-  const [activeSession, setActiveSession] = useState<{charger_id: string; charger_name: string; started_at: string} | null>(null)
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
-
-  // Live minutes countdown during active session
-  const [tickNow, setTickNow] = useState(Date.now())
-  useEffect(() => {
-    if (!activeSession || !minutesBalance) return
-    const iv = setInterval(() => setTickNow(Date.now()), 1000)
-    return () => clearInterval(iv)
-  }, [activeSession, minutesBalance])
-  const displayMinutes = minutesBalance !== null && activeSession && minutesBalance > 0
-    ? Math.max(0, minutesBalance - Math.floor((tickNow - new Date(activeSession.started_at).getTime()) / 60000))
-    : minutesBalance
 
   const fetchReservations = useCallback(async (token: string) => {
     const r = await fetch('/api/reservations', { headers: { Authorization: `Bearer ${token}` } })
@@ -297,10 +346,16 @@ function MobileContent() {
       if (!session) { router.push('/mobile/login'); return }
       setUser(session.user)
       fetch('/api/wallet/balance', { headers: { Authorization: `Bearer ${session.access_token}` } })
-        .then(r => r.json()).then(d => { setBalance(d.balance ?? 0); setMinutesBalance(d.minutes_balance ?? 0) }).catch(() => {})
+        .then(r => r.json()).then(d => setBalance(d.balance ?? 0)).catch(() => {})
       fetchReservations(session.access_token)
-          supabase.from('charging_sessions').select('charger_id, started_at, chargers(name)').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
-            if (data) setActiveSession({ charger_id: data.charger_id, charger_name: (data.chargers as any)?.name || data.charger_id, started_at: data.started_at || new Date().toISOString() })
+          supabase.from('charging_sessions').select('charger_id, started_at, charging_started_at, expires_at, chargers(name)').eq('user_id', session.user.id).eq('status', 'active').maybeSingle().then(({ data }) => {
+            if (data) setActiveSession({
+              charger_id: data.charger_id,
+              charger_name: (data.chargers as any)?.name || data.charger_id,
+              started_at: data.started_at || new Date().toISOString(),
+              charging_started_at: data.charging_started_at,
+              expires_at: data.expires_at,
+            })
           })
     })
     fetchChargers()
@@ -335,16 +390,19 @@ function MobileContent() {
     setLoading(false)
   }
 
-  async function startCharge(chargerId: string) {
+  async function startCharge(chargerId: string, durationMinutes?: number | null) {
     setLoadingCharger(chargerId)
+    setStartChargeModal(null)
     setQrConfirm(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/mobile/login'); return }
+      const body: Record<string, unknown> = { chargerId }
+      if (durationMinutes) body.durationMinutes = durationMinutes
       const res = await fetch('/api/charging/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ chargerId }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (res.status === 402) { setToast({ msg: 'Saldo insuficiente.', type: 'error' }); setTimeout(() => router.push('/wallet'), 1800); return }
@@ -354,7 +412,15 @@ function MobileContent() {
       if (myRes) {
         await fetch('/api/reservations', { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ id: myRes.id }) })
       }
-      setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, sessionId: data.sessionId, startedAt: new Date().toISOString() })
+      const now = new Date().toISOString()
+      setActiveSession({
+        charger_id: chargerId,
+        charger_name: data.chargerName || chargerId,
+        started_at: now,
+        charging_started_at: null,
+        expires_at: data.expiresAt || null,
+      })
+      setReceipt({ chargerName: data.chargerName || chargerId, balance: data.balance ?? 0, sessionId: data.sessionId, startedAt: now })
       setBalance(data.balance ?? 0)
       fetchChargers()
       fetchReservations(session.access_token)
@@ -418,7 +484,15 @@ function MobileContent() {
   return (
     <div className="min-h-screen" style={{ background: '#0f172a', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
       {toast && <MobileToast message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
-      {qrConfirm && <QrConfirmModal chargerId={qrConfirm} charger={qrCharger} onConfirm={() => startCharge(qrConfirm)} onCancel={() => { setQrConfirm(null); router.replace('/mobile') }} loading={loadingCharger === qrConfirm} />}
+      {qrConfirm && <QrConfirmModal chargerId={qrConfirm} charger={qrCharger} onConfirm={() => { setQrConfirm(null); if (qrCharger) setStartChargeModal(qrCharger) }} onCancel={() => { setQrConfirm(null); router.replace('/mobile') }} loading={false} />}
+      {startChargeModal && (
+        <StartChargeModal
+          charger={startChargeModal}
+          loading={loadingCharger === startChargeModal.id}
+          onConfirm={mins => startCharge(startChargeModal.id, mins)}
+          onCancel={() => setStartChargeModal(null)}
+        />
+      )}
       {receipt && <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
       {reserveModal && (
         <ReserveModal charger={reserveModal} loading={reservingCharger === reserveModal.id}
@@ -437,9 +511,6 @@ function MobileContent() {
           <button onClick={() => router.push('/wallet')}
             className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3 py-2 rounded-xl">
             <span className="text-green-400 text-sm font-bold">{balance !== null ? `$${balance.toFixed(2)}` : '...'}</span>
-            {displayMinutes !== null && displayMinutes > 0 && (
-              <span className="text-blue-400 text-xs font-medium">{displayMinutes} min</span>
-            )}
           </button>
           <button onClick={() => router.push('/mobile/profile')}
             className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -529,6 +600,8 @@ function MobileContent() {
             </button>
           </div>
         </div>
+      )}
+      {!mapView && (
         <div className="px-4 space-y-6">
           {available.length > 0 && (
             <div>
@@ -539,7 +612,7 @@ function MobileContent() {
                   const otherRes = !myRes && chargerReservations[c.id]
                   return (
                     <ChargerCard key={c.id} charger={c}
-                      onStart={() => startCharge(c.id)}
+                      onStart={() => setStartChargeModal(c)}
                       onReserve={() => setReserveModal(c)}
                       onCancelReservation={() => myRes && cancelReservation(myRes.id)}
                       loading={loadingCharger === c.id}
