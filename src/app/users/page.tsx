@@ -157,52 +157,84 @@ export default function UsersPage() {
       {loading ? (
         <div className="text-gray-400 text-center py-12">Cargando usuarios...</div>
       ) : (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 border-b border-gray-800 text-xs uppercase">
-                <th className="text-left px-4 py-3">Email</th>
-                <th className="text-left px-4 py-3">Saldo</th>
-                <th className="text-left px-4 py-3">Rol</th>
-                <th className="text-left px-4 py-3">Registro</th>
-                <th className="text-left px-4 py-3">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-green-600/20 text-green-400 flex items-center justify-center text-xs font-bold">
-                        {(u.email?.[0] ?? '?').toUpperCase()}
-                      </div>
-                      <span className="text-white text-xs">{u.email}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-green-400 font-medium">
-                    ${Number(u.balance).toFixed(2)} {u.currency}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX') : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <button onClick={() => openModal(u, 'balance')} className="px-2 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded text-xs">Saldo</button>
-                      <button onClick={() => openModal(u, 'role')} className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded text-xs">Rol</button>
-                      <button onClick={() => openModal(u, 'reset')} className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded text-xs">Reset</button>
-                      <button onClick={() => openModal(u, 'delete')} className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs">Eliminar</button>
-                    </div>
-                  </td>
+        <>
+          {/* Desktop table — hidden on mobile */}
+          <div className="hidden md:block rounded-xl border border-gray-800 bg-gray-900 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-800 text-xs uppercase">
+                  <th className="text-left px-4 py-3">Email</th>
+                  <th className="text-left px-4 py-3">Saldo</th>
+                  <th className="text-left px-4 py-3">Rol</th>
+                  <th className="text-left px-4 py-3">Registro</th>
+                  <th className="text-left px-4 py-3">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-green-600/20 text-green-400 flex items-center justify-center text-xs font-bold">
+                          {(u.email?.[0] ?? '?').toUpperCase()}
+                        </div>
+                        <span className="text-white text-xs">{u.email}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-green-400 font-medium">
+                      ${Number(u.balance).toFixed(2)} {u.currency}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX') : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => openModal(u, 'balance')} className="px-2 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded text-xs">Saldo</button>
+                        <button onClick={() => openModal(u, 'role')} className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded text-xs">Rol</button>
+                        <button onClick={() => openModal(u, 'reset')} className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded text-xs">Reset</button>
+                        <button onClick={() => openModal(u, 'delete')} className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs">Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards — hidden on desktop */}
+          <div className="md:hidden space-y-3">
+            {users.map((u) => (
+              <div key={u.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-full bg-green-600/20 text-green-400 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {(u.email?.[0] ?? '?').toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-white text-sm truncate">{u.email}</p>
+                    <p className="text-gray-500 text-xs">{u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX') : '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-green-400 font-semibold text-sm">${Number(u.balance).toFixed(2)} {u.currency}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                    {u.role}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button onClick={() => openModal(u, 'balance')} className="py-2 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded-lg text-xs font-medium transition-colors">Saldo</button>
+                  <button onClick={() => openModal(u, 'role')} className="py-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-lg text-xs font-medium transition-colors">Rol</button>
+                  <button onClick={() => openModal(u, 'reset')} className="py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium transition-colors">Reset</button>
+                  <button onClick={() => openModal(u, 'delete')} className="py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-medium transition-colors">Eliminar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Modal */}
